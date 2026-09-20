@@ -1,6 +1,6 @@
 "ONLINE_SERVERS" = "在线服务器";
 "RESTART_NOTICE" = "修改在线设置后，请完全退出并重新打开 OurTaiko。每个启用的服务器使用独立账号，并显示为独立的选曲文件夹。";
-"SERVER_NOTICE" = "填写服务器地址与账号后，打开启用开关。服务器地址必须以 http:// 或 https:// 开头。";
+"SERVER_NOTICE" = "填写以 http:// 或 https:// 开头的服务器地址后，打开启用开关。账号留空可作为游客游玩；登录后才同步成绩。";
 "ENABLED" = "启用";
 "SERVER_NAME" = "服务器名称";
 "BASE_URL" = "服务器地址";

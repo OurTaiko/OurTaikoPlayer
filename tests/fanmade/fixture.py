@@ -65,7 +65,7 @@ class Handler(BaseHTTPRequestHandler):
     def handle_request(self):
         path=urlsplit(self.path).path
         variant=''
-        for prefix in ('missing-combo', 'null-combo', 'refresh'):
+        for prefix in ('missing-combo', 'null-combo', 'refresh', 'guest'):
             if path.startswith('/'+prefix+'/'):
                 variant=prefix
                 path=path[len(prefix)+1:]
@@ -81,13 +81,15 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             if body!={'username':'fixture','password':'fixture-password'}: return self.reply({},401)
             return self.reply({'accessToken':('b' if endpoint=='first' else 'c')*64})
-        if self.headers.get('Authorization')!='Bearer '+('b' if endpoint=='first' else 'c')*64:
+        authenticated = self.headers.get('Authorization')=='Bearer '+('b' if endpoint=='first' else 'c')*64
+        if not authenticated and (variant!='guest' or path=='/api/v1/game/scores' or self.headers.get('Authorization')):
             return self.reply({},401)
         if path=='/api/v1/game/bootstrap':
             # A higher old-version score must never overwrite the current score.
             scores=[score(endpoint),score(endpoint,id='old',versionId='d'*32,score=9999999)]
             if variant=='missing-combo': del scores[0]['max_combo']
             if variant=='null-combo': scores[0]['max_combo']=None
+            if not authenticated: scores=[]
             if variant=='refresh': time.sleep(0.15)
             categories=[
                 {'id':'game','title':'Game','genre':'GAME','chartCount':1},
@@ -135,8 +137,12 @@ if __name__=='__main__':
             env={**os.environ,'http_proxy':'http://127.0.0.1:1','https_proxy':'http://127.0.0.1:1','ALL_PROXY':'http://127.0.0.1:1','NO_PROXY':'*'}
             subprocess.run([sys.argv[1],base,cache],env=env,check=True)
             assert counts['proxy']>0, 'configured proxy unused'
-            assert sum(v for k,v in counts.items() if k.endswith('/tja'))==3, counts
-            assert sum(v for k,v in counts.items() if k.endswith('/audio'))==4, counts
+            assert sum(v for k,v in counts.items() if k.endswith('/tja') and not k.startswith('guest:'))==3, counts
+            assert sum(v for k,v in counts.items() if k.endswith('/audio') and not k.startswith('guest:'))==4, counts
+            assert counts['guest:/api/v1/game/login']==2, counts
+            assert counts['guest:/api/v1/game/scores']==0, counts
+            assert counts['guest:/api/v1/charts/'+SONG+'/versions/'+VERSION+'/tja']==4, counts
+            assert counts['guest:/api/v1/charts/'+SONG+'/versions/'+VERSION+'/audio']==4, counts
             assert len(stored)==1, stored
-            print('PASS: proxy routing, empty proxy bypass, exact download counts, version isolation, no DOUBLE upload')
+            print('PASS: guest playback, no guest login/score upload, proxy routing, exact downloads, version isolation, no DOUBLE upload')
     finally: server.shutdown()

@@ -1,6 +1,6 @@
 "ONLINE_SERVERS" = "Online servers";
 "RESTART_NOTICE" = "Restart OurTaiko after changing online settings. Each enabled server has its own account and song folder.";
-"SERVER_NOTICE" = "Enter the server address and account, then enable this server. The address must start with http:// or https://.";
+"SERVER_NOTICE" = "Enter a server address starting with http:// or https://, then enable this server. Leave the account blank to play as a guest. Sign in to sync scores.";
 "ENABLED" = "Enabled";
 "SERVER_NAME" = "Server name";
 "BASE_URL" = "Server URL";

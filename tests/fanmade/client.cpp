@@ -50,6 +50,60 @@ void load_servers(Client& client) {
             check(!client.load_directory(entry.path()),"category navigation never requests HTTP");
     }
 }
+void guest_tests(const std::string& base,const fs::path& cache) {
+    std::vector<ServerConfig> guests{
+        {"Guest",base+"/guest","","",""},
+        {"No password",base+"/guest","fixture","",""},
+        {"No username",base+"/guest","","fixture-password",""},
+        {"Wrong password",base+"/guest","fixture","wrong",""}
+    };
+    for(size_t i=0;i<guests.size();++i) {
+        auto dir=cache/std::to_string(i);
+        Client client;
+        client.bootstrap({guests[i]},dir);
+        check(client.online(),"guest connects to catalog");
+        check(client.status().find("guest; scores disabled")!=std::string::npos,"guest mode visible");
+        if(i==3) check(client.status().find("login failed: HTTP_401")!=std::string::npos,"failed login remains visible");
+        load_servers(client);
+        auto server=fs::directory_iterator(client.song_paths({}).front())->path();
+        auto path=server/"game"/(std::string(32,'1')+".tja");
+        check(client.chart(path).has_value() && !client.best(path,3),"guest catalog has no personal scores");
+        auto playable=client.prepare(path);
+        TJAParser parsed(playable);
+        auto [notes,normal,expert,master]=parsed.notes_to_position(3);
+        check(!notes.notes.empty() && fs::exists(parsed.metadata.wave),"guest downloads playable chart and audio");
+        Score score; score.score=999999;
+        client.submit(playable,3,score);
+        client.update();
+        check(!fs::exists(dir/"pending") && !client.best(path,3),"guest scores never enter upload queue");
+    }
+    // The same username with its password removed must not expose cached
+    // account scores or replay that account's durable upload queue.
+    auto dir=cache/"logout";
+    ServerConfig config{"Logout",base+"/guest","fixture","fixture-password",""};
+    fs::path path;
+    {
+        Client client; client.bootstrap({config},dir); load_servers(client);
+        auto server=fs::directory_iterator(client.song_paths({}).front())->path();
+        path=server/"game"/(std::string(32,'1')+".tja");
+        check(client.best(path,3).has_value(),"authenticated account loads scores");
+        auto guest_config=config; guest_config.password.clear();
+        client.bootstrap({guest_config},dir); load_servers(client);
+        check(!client.best(path,3),"switching to guest clears in-memory account scores");
+    }
+    auto pending=dir/"pending"/sha256(config.base_url+"\n"+config.username)/"existing.json";
+    fs::create_directories(pending.parent_path());
+    { std::ofstream file(pending); file<<"retained account upload"; }
+    config.password.clear();
+    {
+        Client guest; guest.bootstrap({config},dir); load_servers(guest);
+        check(!guest.best(path,3),"guest bootstrap clears account score display");
+        guest.submit(path,3,Score{});
+        guest.update();
+    }
+    check(read_file(pending)=="retained account upload","guest leaves account queue untouched");
+    check(std::distance(fs::directory_iterator(pending.parent_path()),fs::directory_iterator{})==1,"guest does not append deferred uploads");
+}
 void refresh_tests(const std::string& base,const fs::path& cache) {
     Client client;
     std::vector<ServerConfig> config{{"Refresh",base+"/refresh","fixture","fixture-password",""}};
@@ -103,6 +157,7 @@ int main(int argc,char** argv) {
         }
     }
     if(!real) refresh_tests(base,cache/"refresh-tests");
+    if(!real) guest_tests(base,cache/"guest-tests");
     Client client; client.bootstrap(configs,cache);
     check(client.online(),client.status().c_str());
     auto roots=client.song_paths({}); check(roots.size()==1,"catalog root");

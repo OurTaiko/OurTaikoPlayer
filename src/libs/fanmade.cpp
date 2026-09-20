@@ -146,6 +146,7 @@ struct Endpoint {
     std::string id,token;
     std::mutex http_mutex;
     bool connected=false;
+    std::atomic<bool> authenticated{false};
     int chart_count=-1;
     std::vector<Score> scores;
     std::map<std::tuple<std::string,std::string,std::string>,Score> best_scores;
@@ -220,13 +221,24 @@ std::string request(Endpoint& e,const std::string& path,const std::string& body=
 std::string request(Endpoint&,const std::string&,const std::string& ="",const std::string& ="",size_t =64*1024*1024, std::shared_ptr<std::atomic_bool> ={}, TransferCallback ={}) { throw std::runtime_error("FANMADE_NETWORK_DISABLED"); }
 #endif
 void login(Endpoint& e) {
+    e.token.clear();
+    if(e.config.username.empty()||e.config.password.empty()) { e.authenticated=false; return; }
     rapidjson::Document d; d.SetObject(); put(d,"username",e.config.username); put(d,"password",e.config.password);
-    e.token.clear(); auto reply=json(request(e,"/api/v1/game/login",encode(d))); e.token=str(reply,"accessToken");
-    if(!hex_id(e.token,64)) throw std::runtime_error("API_TOKEN_INVALID");
+    try {
+        auto reply=json(request(e,"/api/v1/game/login",encode(d))); auto token=str(reply,"accessToken");
+        if(!hex_id(token,64)) throw std::runtime_error("API_TOKEN_INVALID");
+        e.token=std::move(token);
+        e.authenticated=true;
+    } catch(const HttpError& err) {
+        // A temporary refresh failure keeps the existing account's queue
+        // eligible for retry. Rejected credentials instead enter guest mode.
+        if(err.status==401||err.status==403) e.authenticated=false;
+        throw;
+    }
 }
 std::string authorized(Endpoint& e,const std::string& path,const std::string& body="",const std::string& key="", std::shared_ptr<std::atomic_bool> cancel={}) {
     try { return request(e,path,body,key,64*1024*1024,cancel); }
-    catch(const HttpError& err) { if(err.status!=401) throw; login(e); return request(e,path,body,key,64*1024*1024,cancel); }
+    catch(const HttpError& err) { if(err.status!=401||!e.authenticated) throw; login(e); return request(e,path,body,key,64*1024*1024,cancel); }
 }
 std::string random_key() {
     std::random_device r; std::string bytes; for(int i=0;i<8;i++) bytes+=std::to_string(r()); return sha256(bytes);
@@ -288,6 +300,7 @@ struct Client::Impl {
     void status(const std::string& s) { std::lock_guard lock(mutex); message=s; }
     void drain() {
         for(auto& [id,e]:endpoints) {
+            if(!e->connected||!e->authenticated) continue;
             auto folder=cache/"pending"/id; if(!fs::exists(folder)) continue;
             for(auto& file:fs::directory_iterator(folder)) {
                 if(file.path().extension()!=".json") continue;
@@ -341,10 +354,12 @@ void Client::bootstrap(const std::vector<ServerConfig>& servers,const fs::path& 
         try {
             auto& url=e->config.base_url;
             if((url.rfind("http://",0)!=0&&url.rfind("https://",0)!=0)||url.find_first_of("?#@ \r\n")!=std::string::npos) throw std::runtime_error("SERVER_URL_INVALID");
-            if(e->config.username.empty()||e->config.password.empty()) throw std::runtime_error("ACCOUNT_NOT_CONFIGURED");
-            impl->status(e->config.name+": loading catalog and scores");
+            impl->status(e->config.name+": loading catalog");
             std::lock_guard transport(e->http_mutex);
-            login(*e); auto snapshot=json(authorized(*e,"/api/v1/game/bootstrap"));
+            std::string login_error;
+            try { login(*e); }
+            catch(const std::exception& err) { login_error=err.what(); }
+            auto snapshot=json(authorized(*e,"/api/v1/game/bootstrap"));
             if(!snapshot.HasMember("categories")||!snapshot["categories"].IsArray()||!snapshot.HasMember("scores")||!snapshot["scores"].IsArray()) throw std::runtime_error("API_BOOTSTRAP_INVALID");
             struct Category { std::string id,title,genre; int count=-1; };
             std::vector<Category> categories;
@@ -366,7 +381,7 @@ void Client::bootstrap(const std::vector<ServerConfig>& servers,const fs::path& 
                 e->chart_count=static_cast<int>(n);
             }
             std::vector<Score> scores;
-            for(auto& v:snapshot["scores"].GetArray()) scores.push_back(score_from(v));
+            if(e->authenticated) for(auto& v:snapshot["scores"].GetArray()) scores.push_back(score_from(v));
             write(dir/"box.def","#TITLE:"+line_text(e->config.name)+"\n#GENRE:Namco Original\n");
             for(auto& c:categories) {
                 auto path=dir/c.id;
@@ -375,7 +390,9 @@ void Client::bootstrap(const std::vector<ServerConfig>& servers,const fs::path& 
                 impl->categories[path_key(path)]={e->id,c.id,c.count};
             }
             { std::lock_guard lock(impl->mutex); e->scores=std::move(scores); for(auto& score:e->scores) e->index_score(score); e->connected=true; }
-            impl->status(e->config.name+": "+std::to_string(categories.size())+" categories ready");
+            auto status=e->config.name+": "+std::to_string(categories.size())+" categories ready";
+            if(!e->authenticated) status+=" (guest; scores disabled"+(login_error.empty()?std::string():"; login failed: "+login_error)+")";
+            impl->status(status);
         } catch(const std::exception& err) {
             impl->status(e->config.name+": "+err.what());
             write(dir/"box.def","#TITLE:"+line_text(e->config.name)+" ["+err.what()+"]\n");
@@ -555,6 +572,8 @@ fs::path Client::prepare(const fs::path& path, std::shared_ptr<std::atomic_bool>
 }
 void Client::submit(const fs::path& path,int difficulty,const Score& score) {
     auto c=chart(path); if(!c||difficulty<0||difficulty>=5||!c->difficulties[difficulty]||!c->difficulties[difficulty]->cloud) return;
+    auto e=impl->endpoints.at(c->server);
+    if(!e->connected||!e->authenticated) return;
     rapidjson::Document d; d.SetObject(); put(d,"songId",c->id); put(d,"versionId",c->version); put(d,"difficulty",courses[difficulty]);
     put(d,"good",score.good); put(d,"ok",score.ok); put(d,"bad",score.bad); put(d,"score",score.score); put(d,"drumroll",score.drumroll); put(d,"max_combo",score.max_combo);
     try { write(impl->cache/"pending"/c->server/(random_key()+".json"),encode(d)); impl->retry={}; update(); }
