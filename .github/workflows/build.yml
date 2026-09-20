@@ -7,13 +7,55 @@ on:
         description: Publish a GitHub Release after all builds pass
         type: boolean
         default: false
+      release_tag:
+        description: 'New release tag (required when publishing, e.g. v1.0.0)'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
 
 jobs:
+  validate-release:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        if: inputs.publish_release
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Check new release tag
+        if: inputs.publish_release
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          if [[ -z "$RELEASE_TAG" ]]; then
+            echo '::error::Enter a release_tag when publish_release is enabled.'
+            exit 1
+          fi
+          if [[ "$RELEASE_TAG" == -* || "$RELEASE_TAG" == refs/* ]] || \
+             ! git check-ref-format "refs/tags/$RELEASE_TAG"; then
+            echo '::error::Invalid release_tag. Enter a tag name such as v1.0.0, without the refs/tags/ prefix.'
+            exit 1
+          fi
+          if git ls-remote --exit-code --refs origin "refs/tags/$RELEASE_TAG"; then
+            echo '::error::This release_tag already exists. Choose a new tag.'
+            exit 1
+          else
+            status=$?
+            if [[ "$status" != 2 ]]; then
+              echo '::error::Could not check existing tags on the remote repository.'
+              exit "$status"
+            fi
+          fi
+
   build-linux:
     name: Build on Linux
+    needs: validate-release
     runs-on: ubuntu-latest
 
     steps:
@@ -146,6 +188,7 @@ jobs:
 
   build-windows:
     name: Build on Windows
+    needs: validate-release
     runs-on: windows-latest
 
     defaults:
@@ -228,6 +271,7 @@ jobs:
 
   build-macos:
     name: Build on macOS
+    needs: validate-release
     runs-on: macos-latest
 
     steps:
@@ -317,6 +361,7 @@ jobs:
 
   build-android:
     name: Build Android APK
+    needs: validate-release
     runs-on: ubuntu-latest
 
     steps:
@@ -412,6 +457,7 @@ jobs:
 
   build-ios:
     name: Build unsigned iOS IPA
+    needs: validate-release
     runs-on: macos-15
     env:
       CONFIGURATION: Release
@@ -604,7 +650,7 @@ jobs:
             checksums-macos.sha256
             checksums-ios.sha256
           name: "OurTaiko [Latest Release]"
-          tag_name: "build-${{ github.run_number }}-${{ github.run_attempt }}"
+          tag_name: ${{ inputs.release_tag }}
           target_commitish: ${{ github.sha }}
           make_latest: true
           token: ${{ secrets.GITHUB_TOKEN }}
