@@ -3,16 +3,18 @@
 #include "../../libs/global_data.h"
 #include "../../libs/animation.h"
 
+#include "../../libs/texture.h"
+
 class ScoreCounterAnimation {
 private:
+    TextureObject* t_score_number = nullptr;
     int counter;
     int direction;
     FadeAnimation* fade_animation_1;
-    MoveAnimation* move_animation_1;
+    MoveAnimation* move_animation_x;
     FadeAnimation* fade_animation_2;
-    MoveAnimation* move_animation_2;
-    MoveAnimation* move_animation_3;
-    MoveAnimation* move_animation_4;
+    MoveAnimation* move_animation_y_pre;
+    MoveAnimation* move_animation_y_fan;
     ray::Color base_color;
     ray::Color color;
     std::string counter_str;
@@ -21,9 +23,6 @@ private:
     std::vector<float> y_pos_list;
 
 public:
-    // player_num picks the popup color (player identity); is_2p picks the
-    // animation direction (lane layout). They differ in practice mode, where
-    // a P2 player still plays on the top (1P-positioned) lane.
     ScoreCounterAnimation(PlayerNum player_num, int counter, bool is_2p);
 
     void update(double current_ms);

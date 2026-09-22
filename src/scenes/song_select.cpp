@@ -13,6 +13,7 @@ void SongSelectScreen::on_screen_start() {
 
     diff_fade_out = (FadeAnimation*)tex.get_animation(2);
     script = std::make_unique<SongSelectScript>();
+    t_song_num_bg = tex.get_texture("global/song_num_bg");
     navigator.script = script.get();
 
     shader = load_shader("shader/dummy.vs", "shader/colortransform.fs");
@@ -276,7 +277,7 @@ void SongSelectScreen::draw_overlays() {
         ray::DrawText("Refreshing category song lists...",40,tex.screen_height/2-20,24,ray::WHITE);
     }
 
-    tex.draw_texture(GLOBAL::SONG_NUM_BG, {.x=-(song_num->width-127), .x2=(song_num->width-127), .fade=0.75});
+    tex.draw_texture(t_song_num_bg, {.x=-(song_num->width-127), .x2=(song_num->width-127), .fade=0.75});
     song_num->draw(tex.skin_config[SC::SONG_NUM].x-song_num->width, tex.skin_config[SC::SONG_NUM].y, 1.0);
     if (state == SongSelectState::SONG_SELECTED) {
         if (diff_select_timer) diff_select_timer->draw();

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "animation.h"
-#include "ray.h"
+#include "ray.h" // IWYU pragma: keep
 #include "skin_config_generated.h"
-#include "texture_ids_generated.h" // IWYU pragma: keep
 #include <filesystem>
 #include <stdexcept>
 #include <unordered_set>
@@ -131,6 +130,28 @@ struct FramedTexture : public TextureObject {
     }
 };
 
+struct DrawLogEntry {
+    std::string name;
+    ray::Rectangle rect;
+    TextureObject* tex_obj = nullptr;
+    int index = 0;
+    float offset_x = 0.0f;
+    float offset_y = 0.0f;
+    float scale = 1.0f;
+    bool center = false;
+    ray::Vector2 origin = {0, 0};
+    float rotation = 0.0f;
+    bool from_lua = false;
+    std::string lua_source;
+    int lua_line = 0;
+    std::string lua_function;
+    int lua_defined_line = 0;
+};
+
+inline bool debug_log_draws = false;
+inline std::vector<DrawLogEntry> debug_draw_log;
+inline std::vector<DrawLogEntry> debug_draw_log_prev;
+
 class TextureWrapper {
 private:
     std::unordered_map<int, std::unique_ptr<BaseAnimation>> animations;
@@ -141,7 +162,7 @@ private:
     std::unordered_set<std::string> loaded_subsets;
 
 public:
-    std::unordered_map<uint32_t, std::shared_ptr<TextureObject>> textures;
+    std::unordered_map<std::string, std::shared_ptr<TextureObject>> textures;
     std::unordered_map<SC, SkinInfo> skin_config;
     std::unordered_map<std::string, SkinInfo> skin_config_by_name;
     std::unordered_map<SCO, bool> options;
@@ -175,19 +196,10 @@ public:
         unload_textures();
     }
 
-    // Non-Graphics per-skin asset roots (Sounds/Videos/Models) have no inheritance
-    // mechanism of their own ??these let those subsystems reuse the same parent-skin
-    // knowledge init() already parsed from skin_config.json's screen.parent, instead
-    // of every skin needing its own physical copy of everything.
     fs::path skin_root()   const { return graphics_path.parent_path(); }
     fs::path parent_root() const { return parent_graphics_path.parent_path(); }
     bool has_parent_skin() const { return parent_graphics_path != graphics_path; }
 
-    // relative_path is skin-root-relative, e.g. "Sounds/don.wav", "Videos/op_videos".
-    // Prefers the child skin's own copy; falls back to the parent's if the child
-    // doesn't have it. Returns the child path unchanged if neither exists (same
-    // "let the caller's own missing-file handling deal with it" behavior as before
-    // this existed).
     fs::path resolve_skin_path(const fs::path& relative_path) const {
         fs::path child = skin_root() / relative_path;
         if (fs::exists(child)) return child;
@@ -218,18 +230,14 @@ public:
 
     void clear_screen(const ray::Color& color);
 
-    TexID get_enum(const std::string& name);
+    TextureObject* get_texture(const std::string& name);
     std::vector<std::string> language_variants(const std::string& name) const;
 
     bool has_texture(const std::string& name);
 
-    void draw_texture(uint32_t id, const DrawTextureParams& = {});
+    void draw_texture(TextureObject* tex_obj, const DrawTextureParams& = {});
 };
 
 extern TextureWrapper tex;
 
 extern TextureWrapper global_tex;
-
-// TexID enum, per-subset namespaces, and tex_id_map ??auto-generated from skin texture.json files
-// Usage: tex.draw_texture(YELLOW_BOX::CROWN_FC, {...})
-//        tex.textures[YELLOW_BOX::CROWN_FC]->width

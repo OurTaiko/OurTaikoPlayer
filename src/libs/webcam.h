@@ -1,6 +1,6 @@
 #pragma once
 #include <SDL3/SDL.h>
-#include "ray.h"
+#include "ray.h" // IWYU pragma: keep
 #include <optional>
 
 class WebCamera {
@@ -29,3 +29,5 @@ private:
     int m_width  = 0;
     int m_height = 0;
 };
+
+extern WebCamera webcam;

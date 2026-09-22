@@ -4,6 +4,8 @@
 #include "../../libs/parsers/tja.h"
 #include "../../libs/ray.h"
 
+#include "../../libs/texture.h"
+
 class GaugeHitEffect {
 private:
     NoteType note_type;
@@ -15,6 +17,9 @@ private:
     FadeAnimation* fade_out;
     FadeAnimation* rotation;
     ray::Color color;
+    TextureObject* t_hit_effect = nullptr;
+    TextureObject* t_note = nullptr;
+    TextureObject* t_circle = nullptr;
 
     float width;
 

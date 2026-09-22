@@ -14,6 +14,15 @@ namespace ScoreMethod {
     const std::string SHINUCHI = "shinuchi";
 }
 
+enum class PlayerNum {
+    ALL = 0,
+    P1 = 1,
+    P2 = 2,
+    TWO_PLAYER = 3,
+    DAN = 4,
+    AI = 5
+};
+
 enum class Difficulty {
     BACK = -3,
     MODIFIER = -2,

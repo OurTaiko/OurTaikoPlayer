@@ -2,11 +2,14 @@
 
 #include "../../libs/animation.h"
 
+#include "../../libs/texture.h"
+
 class GogoTime {
 private:
     TextureResizeAnimation* fire_resize;
     TextureChangeAnimation* fire_change;
     float fire_fade;
+    TextureObject* t_fire = nullptr;
 
 public:
     GogoTime();

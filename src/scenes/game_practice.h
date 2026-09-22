@@ -1,23 +1,27 @@
 #pragma once
+#include <array>
 #include "game.h"
 #include "../libs/input.h"
 #include "../objects/game/practice_menu.h"
 
 class PracticeDrumHitEffect : public DrumHitEffect {
     int player_index;
+    TextureObject* t_drum = nullptr;
 public:
     PracticeDrumHitEffect(DrumType type, Side side, int player_index)
-        : DrumHitEffect(type, side), player_index(player_index) {}
-
-    void draw(float y) override {
+        : DrumHitEffect(type, side), player_index(player_index) {
         if (type == DrumType::DON) {
-            tex.draw_texture(PRACTICE::LARGE_DRUM_DON, {.fade = fade->attribute, .index = player_index});
+            t_drum = tex.get_texture("practice/large_drum_don");
         } else if (type == DrumType::KAT) {
             if (side == Side::LEFT)
-                tex.draw_texture(PRACTICE::LARGE_DRUM_KAT_L, {.fade = fade->attribute, .index = player_index});
+                t_drum = tex.get_texture("practice/large_drum_kat_l");
             else if (side == Side::RIGHT)
-                tex.draw_texture(PRACTICE::LARGE_DRUM_KAT_R, {.fade = fade->attribute, .index = player_index});
+                t_drum = tex.get_texture("practice/large_drum_kat_r");
         }
+    }
+
+    void draw(float y) override {
+        tex.draw_texture(t_drum, {.fade = fade->attribute, .index = player_index});
     }
 };
 
@@ -89,17 +93,67 @@ private:
     TextureResizeAnimation* menu_don_anim;
     TextureResizeAnimation* speed_l_kat_anim;
     TextureResizeAnimation* speed_r_kat_anim;
+    TextureResizeAnimation* mark_action_anim;
+    TextureResizeAnimation* mark_finish_anim;
 
-    int jump_bar = -1;
+    std::array<int, PracticeMenu::MARK_SLOTS> jump_bars = {-1, -1, -1, -1, -1};
     PracticeMenu menu;
+
+    int jump_arrow_bar = -1;
+    std::unique_ptr<MoveAnimation> jump_arrow_anim;
+
+    // Textures resolved once in on_screen_start(), after GameScreen::on_screen_start()'s
+    // load_screen_textures() has run, instead of calling tex.get_texture() every frame.
+    void init_practice_textures();
+
+    TextureObject* t_notes[10] = {};
+    TextureObject* t_notes_0 = nullptr;
+    TextureObject* t_notes_8 = nullptr;
+    TextureObject* t_notes_9 = nullptr;
+    TextureObject* t_notes_10 = nullptr;
+    TextureObject* t_drumroll_big_tail = nullptr;
+    TextureObject* t_drumroll_tail = nullptr;
+    TextureObject* t_moji = nullptr;
+    TextureObject* t_moji_drumroll_mid = nullptr;
+
+    TextureObject* t_large_drum = nullptr;
+    TextureObject* t_pause_don = nullptr;
+    TextureObject* t_pause_kat = nullptr;
+    TextureObject* t_resume_don = nullptr;
+    TextureObject* t_skip_l_kat = nullptr;
+    TextureObject* t_skip_r_kat = nullptr;
+    TextureObject* t_menu_don = nullptr;
+    TextureObject* t_speed_r_kat = nullptr;
+    TextureObject* t_speed_l_kat = nullptr;
+    TextureObject* t_confirm = nullptr;
+    TextureObject* t_delete = nullptr;
+    TextureObject* t_finish = nullptr;
+    TextureObject* t_jump_point_editing = nullptr;
+    TextureObject* t_jump_point_arrow = nullptr;
+    TextureObject* t_playing = nullptr;
+    TextureObject* t_progress_bar_bg = nullptr;
+    TextureObject* t_progress_bar = nullptr;
+    TextureObject* t_gogo_marker = nullptr;
+    TextureObject* t_jump_point_progress = nullptr;
+    TextureObject* t_bar_count = nullptr;
+    TextureObject* t_bar_divider = nullptr;
+    TextureObject* t_bar_count_bar = nullptr;
+    TextureObject* t_song_tempo = nullptr;
+    TextureObject* t_dot = nullptr;
+    TextureObject* t_multiplier = nullptr;
+    TextureObject* t_bar_label = nullptr;
+    TextureObject* t_paused = nullptr;
 
     void init_tja_practice(const fs::path& song);
     void pause_song_practice();
     void restart_practice();
     std::optional<Screens> handle_menu_action(PracticeMenu::Action action);
     std::optional<Screens> global_keys_practice();
+    void animate_scrobble_to(int new_index);
+    void scrobble_step_bar(bool right);
 
     float get_scrobble_position_x(const Note& note, double current_ms) const;
+    ray::Color moji_judgment_color(int note_index) const;
     void draw_bar_scrobble(const Note& bar, double current_ms) const;
     void draw_drumroll_scrobble(const Note& head, double current_ms) const;
     void draw_balloon_scrobble(const Note& head, double current_ms) const;

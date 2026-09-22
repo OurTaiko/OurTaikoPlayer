@@ -6,6 +6,7 @@
 #include "modifier.h"
 #include "ura_switch.h"
 #include "diff_sort.h"
+#include "../../libs/texture.h"
 
 class SongSelectScript;
 
@@ -78,4 +79,18 @@ private:
     void navigate_difficulty_right();
     void toggle_ura_mode();
     void start_background_diffs();
+
+    // Textures resolved once in the constructor, after the owning screen's
+    // load_screen_textures() has already run, instead of calling tex.get_texture()
+    // every frame from draw_selector()/draw_background_diffs().
+    TextureObject* t_balloon = nullptr;
+    TextureObject* t_balloon_half = nullptr;
+    TextureObject* t_outline = nullptr;
+    TextureObject* t_outline_half = nullptr;
+    TextureObject* t_outline_back = nullptr;
+    TextureObject* t_outline_back_half = nullptr;
+    TextureObject* t_background_diff = nullptr;
+    TextureObject* t_background_diff_highlight = nullptr;
+    TextureObject* t_bg_diff_text_bg = nullptr;
+    TextureObject* t_bg_diff_text = nullptr;
 };

@@ -1,5 +1,4 @@
 #include "fireworks.h"
-#include "../../libs/texture.h"
 #include <algorithm>
 
 static constexpr int GOGO_EXPLOSION_ANIM_ID = 23;
@@ -11,6 +10,7 @@ Fireworks::Fireworks() {
     }
 
     explosion_anim->start();
+    t_explosion = tex.get_texture("gogo_time/explosion");
 }
 
 void Fireworks::update(double current_ms) {
@@ -29,7 +29,7 @@ void Fireworks::draw() {
             if (s->y > 0) mirror_from = std::min(static_cast<int>(s->y), slots);
         }
         for (int i = 0; i < slots; i++) {
-            tex.draw_texture(GOGO_TIME::EXPLOSION, {
+            tex.draw_texture(t_explosion, {
                 .frame = (int)explosion_anim->attribute,
                 .mirror = (mirror_from >= 0 && i >= mirror_from) ? Mirror::HORIZONTAL : Mirror::NONE,
                 .index = i});

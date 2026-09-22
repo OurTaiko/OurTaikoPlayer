@@ -30,6 +30,9 @@ void SettingsScreen::on_screen_start() {
     coin_overlay   = CoinOverlay();
     allnet_indicator = AllNetIcon();
 
+    t_background = tex.get_texture("background/background");
+    t_footer = tex.get_texture("background/footer");
+
     audio.play_sound("bgm", VolumePreset::MUSIC);
     screen_init = true;
 }
@@ -62,9 +65,6 @@ std::optional<Screens> SettingsScreen::handle_input() {
     if (ray::IsKeyPressed(ray::KEY_F1)) {
         return on_screen_end(Screens::INPUT_CALI);
     }
-    if (ray::IsKeyPressed(ray::KEY_F2)) {
-        return on_screen_end(Screens::SKIN_VIEWER);
-    }
     if (ray::IsKeyPressed(ray::KEY_F3)) {
         return on_screen_end(Screens::INPUT_TEST);
     }
@@ -96,9 +96,9 @@ std::optional<Screens> SettingsScreen::update() {
 }
 
 void SettingsScreen::draw() {
-    tex.draw_texture(BACKGROUND::BACKGROUND);
+    tex.draw_texture(t_background);
     box_manager->draw();
-    tex.draw_texture(BACKGROUND::FOOTER);
+    tex.draw_texture(t_footer);
     indicator->draw(tex.skin_config[SC::SONG_SELECT_INDICATOR].x,
                     tex.skin_config[SC::SONG_SELECT_INDICATOR].y);
     coin_overlay->draw();

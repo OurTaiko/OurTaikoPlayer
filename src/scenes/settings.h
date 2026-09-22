@@ -13,6 +13,9 @@ private:
     std::optional<CoinOverlay> coin_overlay;
     std::optional<AllNetIcon> allnet_indicator;
 
+    TextureObject* t_background = nullptr;
+    TextureObject* t_footer = nullptr;
+
     std::optional<Screens> handle_input();
 
 public:

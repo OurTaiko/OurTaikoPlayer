@@ -2,15 +2,18 @@
 
 #include "../../libs/animation.h"
 
+#include "../../libs/texture.h"
+
 class KusudamaCounter {
 private:
     int balloon_total;
     int balloon_count;
     bool is_popped;
-    MoveAnimation* move_down;
-    MoveAnimation* move_up;
-    MoveAnimation* renda_move_up;
-    MoveAnimation* renda_move_down;
+    TextureObject* t_kusudama = nullptr;
+    TextureObject* t_renda = nullptr;
+    TextureObject* t_counter = nullptr;
+    MoveAnimation* move;
+    MoveAnimation* renda_move;
     FadeAnimation* renda_fade_in;
     FadeAnimation* renda_fade_out;
     TextStretchAnimation* stretch;

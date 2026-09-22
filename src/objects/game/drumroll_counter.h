@@ -1,12 +1,15 @@
 #pragma once
 
 #include "../../libs/animation.h"
+#include "../../libs/texture.h"
 
 class DrumrollCounter {
 private:
     int drumroll_count;
     FadeAnimation* fade;
     TextStretchAnimation* stretch;
+    TextureObject* t_bubble = nullptr;
+    TextureObject* t_counter = nullptr;
 
 public:
     DrumrollCounter();

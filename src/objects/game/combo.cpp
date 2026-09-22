@@ -1,5 +1,4 @@
 #include "combo.h"
-#include "../../libs/texture.h"
 #include "../../libs/global_data.h"
 #include <cmath>
 #include <stdexcept>
@@ -25,6 +24,13 @@ Combo::Combo(int combo, double current_ms)
                 current_ms - (2.0f / 3.0f) * cycle_time,
                 current_ms - (4.0f / 3.0f) * cycle_time
     };
+
+    t_counter = tex.get_texture("combo/counter");
+    t_counter_gold = tex.has_texture("combo/counter_gold") ? tex.get_texture("combo/counter_gold") : nullptr;
+    t_counter_100 = tex.has_texture("combo/counter_100") ? tex.get_texture("combo/counter_100") : nullptr;
+    t_gleam = tex.get_texture("combo/gleam");
+    t_combo = tex.get_texture("combo/combo_" + global_data.config->general.language);
+    t_combo_100 = tex.get_texture("combo/combo_100_" + global_data.config->general.language);
 }
 
 void Combo::update_count(int curr_combo) {
@@ -62,21 +68,18 @@ void Combo::draw(float y) {
     if (combo < 3) return;
 
     std::string counter = std::to_string(combo);
-    
+
     const bool tiers  = tex.options[SCO::COMBO_COLOR_TIERS];
     const bool gold   = combo >= 100;
     const bool silver = tiers && combo >= 50 && combo < 100;
 
-    auto have = [&](TexID id) {
-        return tex.textures.find((uint32_t)id) != tex.textures.end();
-    };
-    TexID digit_tex = COMBO::COUNTER;
+    TextureObject* digit_tex = t_counter;
     if (gold) {
-        digit_tex = have(COMBO::COUNTER_GOLD) ? COMBO::COUNTER_GOLD
-                  : have(COMBO::COUNTER_100)  ? COMBO::COUNTER_100
-                  : COMBO::COUNTER;
+        digit_tex = t_counter_gold ? t_counter_gold
+                  : t_counter_100  ? t_counter_100
+                  : t_counter;
     } else if (silver) {
-        digit_tex = have(COMBO::COUNTER_100) ? COMBO::COUNTER_100 : COMBO::COUNTER;
+        digit_tex = t_counter_100 ? t_counter_100 : t_counter;
     }
 
     float margin;
@@ -84,7 +87,7 @@ void Combo::draw(float y) {
     if (!gold) {
         margin = tex.skin_config[SC::COMBO_MARGIN].x;
         total_width = counter.length() * margin;
-        tex.draw_texture(tex.get_enum("combo/combo_" + global_data.config->general.language), {.y=y});
+        tex.draw_texture(t_combo, {.y=y});
         for (int i = 0; i < counter.size(); i++) {
             char digit = counter[i];
             tex.draw_texture(digit_tex, {.frame=digit - '0', .x=-(total_width / 2) + (i * margin), .y=y + (float)-stretch->attribute, .y2=(float)stretch->attribute});
@@ -93,7 +96,7 @@ void Combo::draw(float y) {
     } else {
         margin = tex.skin_config[SC::COMBO_MARGIN].y;
         total_width = counter.length() * margin;
-        tex.draw_texture(tex.get_enum("combo/combo_100_" + global_data.config->general.language), {.y=y});
+        tex.draw_texture(t_combo_100, {.y=y});
         for (int i = 0; i < counter.size(); i++) {
             char digit = counter[i];
             tex.draw_texture(digit_tex, {.frame=digit - '0', .x=-(total_width / 2) + (i * margin), .y=y + (float)-stretch->attribute, .y2=(float)stretch->attribute});
@@ -106,7 +109,7 @@ void Combo::draw(float y) {
         for (size_t j = 0; j < glimmer_positions.size(); j++) {
             auto [x, y_pos] = glimmer_positions[j];
             for (int i = 0; i < 3; i++) {
-                tex.draw_texture(COMBO::GLEAM, {.color=color[j], .x=x+(i*margin), .y=y+y_pos+glimmer_map[j]});
+                tex.draw_texture(t_gleam, {.color=color[j], .x=x+(i*margin), .y=y+y_pos+glimmer_map[j]});
             }
         }
     }

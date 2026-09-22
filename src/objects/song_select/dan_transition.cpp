@@ -1,5 +1,4 @@
 #include "dan_transition.h"
-#include "../../libs/texture.h"
 #include <algorithm>
 
 DanTransition::DanTransition() {
@@ -12,6 +11,7 @@ void DanTransition::start() {
     started  = true;
     start_ms = 0;
     last_ms  = 0;
+    t_background = tex.get_texture("dan_transition/background");
 }
 
 void DanTransition::update(double current_ms) {
@@ -40,5 +40,5 @@ double DanTransition::progress() const {
 }
 
 void DanTransition::draw() {
-    tex.draw_texture(DAN_TRANSITION::BACKGROUND, {.x2=(float)slide_in->attribute});
+    tex.draw_texture(t_background, {.x2=(float)slide_in->attribute});
 }

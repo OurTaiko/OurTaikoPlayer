@@ -1,5 +1,4 @@
 #include <cstdlib>
-#include <fstream>
 #include <iostream>
 #include <rlgl.h>
 #if defined(PLATFORM_ANDROID) || defined(OURTAIKO_PLATFORM_IOS)
@@ -35,15 +34,14 @@
 #include "scenes/loading.h"
 #include "scenes/result.h"
 #include "scenes/result_2p.h"
-#include "scenes/sandbox.h"
 #include "scenes/settings.h"
-#include "scenes/skin_viewer.h"
 #include "scenes/song_select.h"
 #include "scenes/song_select_2p.h"
 #include "scenes/song_select_practice.h"
 #include "scenes/title.h"
 #include "scenes/game_over.h"
 
+#include "objects/global/debug_menu.h"
 #include "objects/global/fps_counter.h"
 
 #ifdef _WIN32
@@ -57,9 +55,6 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
-
-namespace fs = std::filesystem;
-
 
 void draw_outer_border(int screen_width, int screen_height, ray::Color last_color) {
     DrawRectangle(-screen_width, 0, screen_width, screen_height, last_color);
@@ -115,10 +110,6 @@ Screens check_args(int argc, char* argv[]) {
             auto_play = true;
         } else if (arg == "--practice") {
             practice = true;
-        } else if (arg == "--sandbox") {
-            return Screens::SANDBOX;
-        } else if (arg == "--skin-viewer") {
-            return Screens::SKIN_VIEWER;
         } else if (arg == "--help" || arg == "-h") {
             std::cout << "Usage: " << argv[0] << " <song_path> [difficulty] [--auto] [--practice]\n";
             std::cout << "  song_path   : Path to the TJA song file\n";
@@ -249,8 +240,6 @@ static void populate_screens(std::unordered_map<Screens, std::unique_ptr<Screen>
     if (except != Screens::DAN_RESULT)      screens[Screens::DAN_RESULT]      = std::make_unique<DanResultScreen>();
     if (except != Screens::SETTINGS)        screens[Screens::SETTINGS]        = std::make_unique<SettingsScreen>();
     if (except != Screens::INPUT_CALI)      screens[Screens::INPUT_CALI]      = std::make_unique<InputCaliScreen>();
-    if (except != Screens::SKIN_VIEWER)     screens[Screens::SKIN_VIEWER]     = std::make_unique<SkinViewerScreen>();
-    if (except != Screens::SANDBOX)         screens[Screens::SANDBOX]         = std::make_unique<SandboxScreen>();
     if (except != Screens::GAME_OVER)       screens[Screens::GAME_OVER]       = std::make_unique<GameOverScreen>();
     if (except != Screens::INPUT_TEST)      screens[Screens::INPUT_TEST]      = std::make_unique<InputTestScreen>();
 }
@@ -310,11 +299,8 @@ static void run_frame() {
 
 #endif
 
-    // Read tex.screen_width/height live, not a cached copy -- a skin change
-    // (settings.cpp's unload_skin()+load_skin()) can change the virtual
-    // canvas size for a skin of a different resolution mid-session, and a
-    // stale copy here would misalign the camera against it from then on.
     L.camera = compute_camera2d(tex.screen_width, tex.screen_height);
+    debug_menu.update(L.camera);
 
     ray::BeginDrawing();
 
@@ -350,6 +336,11 @@ static void run_frame() {
     fanmade::client().update();
     std::optional<Screens> next_screen = screen->update();
 
+    if (!next_screen.has_value() && debug_menu.requested_screen.has_value()) {
+        next_screen = screen->on_screen_end(debug_menu.requested_screen.value());
+        debug_menu.requested_screen.reset();
+    }
+
     if (screen->screen_init) {
         screen->_do_draw();
     }
@@ -379,8 +370,6 @@ static void run_frame() {
     }
 
     if (global_data.config->general.touch_input) {
-        // Settings reloads global_tex and destroys its animations. Resolve the
-        // current animation each frame instead of retaining a pointer across reloads.
         auto* touch_drum_resize = static_cast<TextureResizeAnimation*>(global_tex.get_animation(66));
         if (touch_drum_resize) {
             if (!touch_drum_resize->isStarted()) touch_drum_resize->start();
@@ -389,10 +378,10 @@ static void run_frame() {
             touch_drum_resize->update(get_current_ms());
             const float scale = (float)touch_drum_resize->attribute;
             float y_fix = 0.0f;
-            auto drum_it = global_tex.textures.find(OVERLAY::TOUCH_DRUM);
+            auto drum_it = global_tex.textures.find("overlay/touch_drum");
             if (drum_it != global_tex.textures.end())
                 y_fix = drum_it->second->height * 0.5f * (1.0f - scale);
-            global_tex.draw_texture(OVERLAY::TOUCH_DRUM, {.scale=scale, .center=true, .y=y_fix, .fade=0.5f});
+            global_tex.draw_texture(global_tex.get_texture("overlay/touch_drum"), {.scale=scale, .center=true, .y=y_fix, .fade=0.5f});
         }
     }
 
@@ -400,6 +389,8 @@ static void run_frame() {
         L.fps_counter.update();
         L.fps_counter.draw();
     }
+
+    debug_menu.draw();
 
     draw_outer_border(tex.screen_width, tex.screen_height, L.last_color);
 

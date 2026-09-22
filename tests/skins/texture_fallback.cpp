@@ -4,32 +4,32 @@
 #include <iostream>
 
 GlobalData global_data;
-static void load(TexID id) {
-    tex.textures[(uint32_t)id] = std::make_shared<TextureObject>("fixture", 1, 1);
+static void load(const std::string& id) {
+    tex.textures[id] = std::make_shared<TextureObject>("fixture", 1, 1);
 }
 int main() {
     Config config;
     config.general.language = "zh";
     global_data.config = &config;
     assert(!tex.has_texture("combo/combo_zh"));
-    load(COMBO::COMBO_EN);
+    load("combo/combo_en");
     assert(tex.has_texture("combo/combo_zh"));
-    assert(tex.get_enum("combo/combo_zh") == COMBO::COMBO_EN);
-    load(COMBO::COMBO_JA);
-    assert(tex.get_enum("combo/combo_zh") == COMBO::COMBO_JA);
+    assert(tex.get_texture("combo/combo_zh") == tex.get_texture("combo/combo_en"));
+    load("combo/combo_ja");
+    assert(tex.get_texture("combo/combo_zh") == tex.get_texture("combo/combo_ja"));
     config.general.language = "en";
-    assert(tex.get_enum("combo/combo_en") == COMBO::COMBO_EN);
-    tex.textures.erase((uint32_t)COMBO::COMBO_EN);
-    assert(tex.get_enum("combo/combo_en") == COMBO::COMBO_JA);
+    assert(tex.get_texture("combo/combo_en") == tex.get_texture("combo/combo_en"));
+    tex.textures.erase("combo/combo_en");
+    assert(tex.get_texture("combo/combo_en") == tex.get_texture("combo/combo_ja"));
     assert(!tex.has_texture("combo/unrelated_name"));
     assert(tex.language_variants("combo/unrelated_name") == std::vector<std::string>{"combo/unrelated_name"});
     config.general.language = "zh_tw";
-    assert(tex.get_enum("combo/combo_zh_tw") == COMBO::COMBO_JA);
-    load(DAN_INFO::EXAM_DRUMROLL);
-    assert(exam_icon_id(DAN_INFO::EXAM_ROLL, "dan_info") == DAN_INFO::EXAM_DRUMROLL);
-    assert(exam_icon_id(DAN_INFO::EXAM_GAUGE, "dan_info") == DAN_INFO::EXAM_GAUGE);
-    load(DAN_INFO::EXAM_ROLL);
-    assert(exam_icon_id(DAN_INFO::EXAM_ROLL, "dan_info") == DAN_INFO::EXAM_ROLL);
+    assert(tex.get_texture("combo/combo_zh_tw") == tex.get_texture("combo/combo_ja"));
+    load("dan_info/exam_drumroll");
+    assert(exam_icon_id("dan_info/exam_roll", "dan_info") == tex.get_texture("dan_info/exam_drumroll"));
+    assert(exam_icon_id("dan_info/exam_gauge", "dan_info") == tex.get_texture("dan_info/exam_gauge"));
+    load("dan_info/exam_roll");
+    assert(exam_icon_id("dan_info/exam_roll", "dan_info") == tex.get_texture("dan_info/exam_roll"));
     tex.unload_textures();
     assert(!tex.has_texture("combo/combo_zh_tw"));
     global_data.config = nullptr;

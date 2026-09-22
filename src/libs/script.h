@@ -2,7 +2,6 @@
 
 #include "texture.h"
 #include <sol/sol.hpp>
-#include <chrono>
 #include <spdlog/spdlog.h>
 
 class LuaScript {
@@ -51,6 +50,10 @@ public:
 };
 
 extern ScriptManager script_manager;
+
+inline lua_State* script_lua_state() { return script_manager.lua ? script_manager.lua->lua_state() : nullptr; }
+
+void log_lua_site(DrawLogEntry& entry, lua_State* state);
 
 template<typename... Args>
 bool LuaScript::load(const std::string& class_name, const std::string& script_name, Args&&... args) {

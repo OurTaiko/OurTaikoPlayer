@@ -5,9 +5,7 @@
 #ifdef SUPPORT_FUMEN
 #include "optional/nus3bank.h"
 #include "optional/nub.h"
-#include "optional/gen4.h"
 #endif
-#include "texture.h"
 #include "filesystem.h"
 #include <chrono>
 #include <thread>
@@ -734,6 +732,7 @@ bool AudioEngine::init_audio_device(const fs::path& sounds_path, const AudioConf
 }
 
 void AudioEngine::close_audio_device() {
+    if (!is_ready) return;
     try {
         unload_all_sounds();
         unload_all_music();

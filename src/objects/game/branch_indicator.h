@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../libs/animation.h"
+#include "../../libs/texture.h"
 #include "../enums.h"
 
 class BranchIndicator {
@@ -12,6 +13,11 @@ private:
     FadeAnimation* level_fade;
     TextureResizeAnimation* level_scale;
     int direction;
+    TextureObject* t_expert_bg = nullptr;
+    TextureObject* t_master_bg = nullptr;
+    TextureObject* t_level_up = nullptr;
+    TextureObject* t_level_down = nullptr;
+    TextureObject* t_diff[3] = {};  // indexed by BranchDifficulty
 
 public:
     BranchDifficulty difficulty;

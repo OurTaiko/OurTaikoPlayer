@@ -21,7 +21,8 @@ git submodule update --init --recursive
 Do not run that command over skin changes you want to keep. If your assets live
 elsewhere, pass `-DYATAIDON_SKINS_DIR=/absolute/path/to/Skins` to the build script.
 Use the complete `Skins` directory from the matching submodule revisions, including
-`PyTaikoGreen` and `YataiDONNijiiro`: texture IDs are generated across skins. All
+`PyTaikoGreen` and `YataiDONNijiiro`: native rendering and Lua scripts must use the
+same texture API. All
 skins placed there are included. `-DIOS_SONGS_DIR=/absolute/path/to/Songs` changes the bundled
 song library. Large skin videos increase both app size and first-launch copy time.
 
@@ -105,6 +106,15 @@ installation (including subsequent app upgrades). Remove this marker while the
 app is closed to reinstall missing bundled files. Bundled shaders alone are
 refreshed when their build-time content hash changes after an update. Uninstalling the app deletes its data container, so copy
 out any songs and scores you want to keep first.
+
+The September 22 upstream merge changes the Lua texture API and moves additional
+scene drawing into skin scripts. For an existing installation, back up Documents/Skins
+and replace the bundled PyTaikoGreen, YataiDONNijiiro and YataiDONRed folders with
+the versions from this checkout before testing. Reinstalling the app over itself
+does not update those existing folders; removing only `.game-data-installed` also
+does not overwrite existing skin files. Keep Documents/Songs, settings, scores and
+custom skins. Older custom skin scripts using `tex.get_id` need migration to
+`tex.get_texture`; the merge does not provide the removed integer-ID API.
 
 Settings are read on each launch. Missing settings are recreated; invalid settings
 are backed up with an unused `.bak` suffix and replaced with complete defaults.

@@ -10,13 +10,13 @@
 
 // The drumroll condition icon is `exam_roll` in newer skins and `exam_drumroll` in older
 // ones; use whichever the active skin carries.
-inline TexID exam_icon_id(TexID preferred, const char* folder) {
-    if (tex.textures.find((uint32_t)preferred) != tex.textures.end()) return preferred;
-    const auto roll = tex_id_map.find(std::string(folder) + "/exam_roll");
-    if (roll == tex_id_map.end() || roll->second != preferred) return preferred;
-    const std::string alt = std::string(folder) + "/exam_drumroll";
-    if (tex.has_texture(alt)) return tex.get_enum(alt);
-    return preferred;
+inline TextureObject* exam_icon_id(const std::string& preferred, const char* folder) {
+    if (tex.has_texture(preferred)) return tex.get_texture(preferred);
+    if (preferred == std::string(folder) + "/exam_roll") {
+        const std::string alt = std::string(folder) + "/exam_drumroll";
+        if (tex.has_texture(alt)) return tex.get_texture(alt);
+    }
+    return tex.get_texture(preferred);
 }
 
 inline std::string exam_threshold_text(const TextureWrapper& tex,

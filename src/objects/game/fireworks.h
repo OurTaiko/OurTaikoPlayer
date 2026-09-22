@@ -2,9 +2,12 @@
 
 #include "../../libs/animation.h"
 
+#include "../../libs/texture.h"
+
 class Fireworks {
 private:
     TextureChangeAnimation* explosion_anim;
+    TextureObject* t_explosion = nullptr;
 
 public:
     Fireworks();

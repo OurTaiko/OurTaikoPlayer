@@ -30,14 +30,13 @@ with tempfile.TemporaryDirectory(prefix="ourtaiko-upstream-") as directory:
     out = Path(directory)
     run([sys.executable, ROOT / "tools/gen_skin_config.py",
          skins / "PyTaikoGreen/Graphics/skin_config.json", out / "skin_config_generated.h"])
-    run([sys.executable, ROOT / "tools/gen_textures.py",
-         *sorted(skins.glob("*/Graphics")), out / "texture_ids_generated.h"])
     common = ["clang++", "-std=c++20", "-fsanitize=address,undefined",
               "-ffunction-sections", "-fdata-sections",
               "-Wl,-dead_strip" if platform.system() == "Darwin" else "-Wl,--gc-sections",
               "-I" + str(out)]
     for project, subdir in [("raylib", "src"), ("spdlog", "include"),
-                            ("rapidjson", "include"), ("tomlplusplus", "include")]:
+                            ("rapidjson", "include"), ("tomlplusplus", "include"),
+                            ("sol2", "include"), ("lua", "src")]:
         common.append("-I" + str(deps / (project + "-src") / subdir))
     checks = [
         ("exams", ["tests/dan/exams.cpp"], [ROOT / "Songs"]),

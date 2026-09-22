@@ -105,7 +105,7 @@ if(ANDROID)
 else()
   add_executable(${PROJECT_NAME} ${CppFiles} ${HeaderFiles})
 endif()
-add_dependencies(${PROJECT_NAME} skin_config_gen texture_ids_gen)
+add_dependencies(${PROJECT_NAME} skin_config_gen)
 
 # Ship attribution with local desktop builds as well as CI release archives.
 if(NOT ANDROID AND NOT IOS AND NOT EMSCRIPTEN)

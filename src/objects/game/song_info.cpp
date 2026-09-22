@@ -23,6 +23,9 @@ SongInfo::SongInfo(const std::string& song_name, const std::string& subtitle, bo
     if (song_total > 0 && tex.skin_entry("song_num_max"))
         song_max = std::make_unique<SongNum>(song_total, "song_num_max");
     fade = dynamic_cast<FadeAnimation*>(tex.get_animation(3));
+
+    t_genre = tex.get_texture("song_info/genre");
+    t_song_num_plate = tex.has_texture("song_info/song_num_plate") ? tex.get_texture("song_info/song_num_plate") : nullptr;
 }
 
 void SongInfo::update(double current_ms) {
@@ -49,10 +52,10 @@ void SongInfo::draw() {
             credit->draw({.x=text_x - credit->width, .y=tex.skin_config[SC::SONG_INFO_SUBTITLE].y - credit->height / 2.0f, .fade=1 - fade->attribute});
         }
         if (genre < 9) {
-            tex.draw_texture(SONG_INFO::GENRE, {.frame = genre, .fade = 1 - fade->attribute,});
+            tex.draw_texture(t_genre, {.frame = genre, .fade = 1 - fade->attribute,});
         }
-        if (tex.has_texture("song_info/song_num_plate")) {
-            tex.draw_texture(tex.get_enum("song_info/song_num_plate"), {.fade = fade->attribute});
+        if (t_song_num_plate) {
+            tex.draw_texture(t_song_num_plate, {.fade = fade->attribute});
         }
         song_num->draw(plate->x - song_num->width / 2.0f, plate->y - song_num->height / 2.0f, fade->attribute);
         if (song_max) {
@@ -74,7 +77,7 @@ void SongInfo::draw() {
 
     if (genre < 9) {
         float genre_y_offset = credit ? credit->height : 0;
-        tex.draw_texture(SONG_INFO::GENRE, {.frame = genre, .y = genre_y_offset, .fade = 1 - fade->attribute,});
+        tex.draw_texture(t_genre, {.frame = genre, .y = genre_y_offset, .fade = 1 - fade->attribute,});
     }
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../libs/animation.h"
+#include "../../libs/texture.h"
 
 class BalloonCounter {
 private:
@@ -10,6 +11,9 @@ private:
     bool is_2p;
     TextStretchAnimation* stretch;
     FadeAnimation* fade;
+    TextureObject* t_pop = nullptr;
+    TextureObject* t_bubble = nullptr;
+    TextureObject* t_counter = nullptr;
 public:
     BalloonCounter(int count, bool is_2p);
 

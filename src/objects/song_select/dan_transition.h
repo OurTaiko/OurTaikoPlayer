@@ -2,12 +2,15 @@
 
 #include "../../libs/animation.h"
 
+#include "../../libs/texture.h"
+
 class DanTransition {
 private:
     MoveAnimation* slide_in;
     bool started;
     double start_ms = 0;
     double last_ms  = 0;
+    TextureObject* t_background = nullptr;
 public:
     DanTransition();
     void start();
