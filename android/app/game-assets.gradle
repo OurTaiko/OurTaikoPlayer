@@ -1,15 +1,31 @@
 // Shared by the Android build and the standalone asset-packaging check.
 def gameAssetsDir = layout.buildDirectory.dir('generated/game_assets')
 def repositoryDir = rootProject.file('..')
+def skinProfile = providers.gradleProperty('skinProfile')
+    .orElse(providers.environmentVariable('OURTAIKO_SKIN_PROFILE')).getOrElse('green')
+if (!(skinProfile ==~ /[a-zA-Z0-9_-]+/)) {
+    throw new GradleException("Invalid skin profile: '${skinProfile}'")
+}
+def skinManifest = new File(repositoryDir, "packaging/skins-${skinProfile}.txt")
+if (!skinManifest.isFile()) {
+    throw new GradleException("Missing skin profile: ${skinManifest}")
+}
+def packagedSkins = skinManifest.readLines('UTF-8').findAll { !it.isEmpty() }
+if (packagedSkins.isEmpty() || packagedSkins.any { !(it ==~ /[a-zA-Z0-9_-]+/) }) {
+    throw new GradleException("Skin profile must contain valid skin directory names: ${skinManifest}")
+}
 
 tasks.register('packGameData', Zip) {
+    inputs.file(skinManifest)
     destinationDirectory = gameAssetsDir
     archiveFileName = 'GameData.zip'
     preserveFileTimestamps = false
     reproducibleFileOrder = true
-    from(new File(repositoryDir, 'Skins')) {
-        into 'Skins'
-        exclude '**/.git', '**/.git/**', '**/.git*', '**/.DS_Store'
+    packagedSkins.each { skin ->
+        from(new File(repositoryDir, "Skins/${skin}")) {
+            into "Skins/${skin}"
+            exclude '**/.git', '**/.git/**', '**/.git*', '**/.DS_Store'
+        }
     }
     from(new File(repositoryDir, 'Songs')) {
         into 'Songs'
@@ -36,9 +52,9 @@ tasks.register('packGameData', Zip) {
         }
     }
     doFirst {
-        ['PyTaikoGreen', 'YataiDONRed', 'YataiDONNijiiro'].each { skin ->
+        packagedSkins.each { skin ->
             if (!new File(repositoryDir, "Skins/${skin}/Graphics/skin_config.json").isFile()) {
-                throw new GradleException("Missing ${skin} assets. Populate the skin submodules before building Android.")
+                throw new GradleException("Missing ${skin} assets required by skin profile '${skinProfile}'.")
             }
         }
     }

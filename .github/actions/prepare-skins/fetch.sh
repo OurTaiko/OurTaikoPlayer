@@ -23,5 +23,5 @@ if [[ -n "${GITEA_USER:-}" || -n "${GITEA_TOKEN:-}" ]]; then
 fi
 
 export GIT_TERMINAL_PROMPT=0
-git submodule sync --recursive
-git "${git_options[@]}" submodule update --init --recursive
+git submodule sync --recursive -- Skins/PyTaikoGreen
+git "${git_options[@]}" submodule update --init --recursive -- Skins/PyTaikoGreen

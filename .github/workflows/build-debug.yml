@@ -6,6 +6,9 @@ on:
 permissions:
   contents: read
 
+env:
+  OURTAIKO_SKIN_PROFILE: green
+
 jobs:
   build-linux:
     name: Build on Linux
@@ -101,7 +104,7 @@ jobs:
           mkdir -p release/OurTaiko-Linux
           cp build/bin/OurTaiko release/OurTaiko-Linux/
           cp build/bin/OurTaiko.png build/bin/install-desktop-entry.py release/OurTaiko-Linux/
-          cp -r Skins release/OurTaiko-Linux/
+          cmake -DSKINS_DIR="$PWD/Skins" -DSKINS_DEST_DIR="$PWD/release/OurTaiko-Linux/Skins" -P cmake/package_skins.cmake
           cp -r shader release/OurTaiko-Linux/
           cp -r Songs release/OurTaiko-Linux/
           cp config.toml release/OurTaiko-Linux/
@@ -196,7 +199,7 @@ jobs:
           mkdir -p release/OurTaiko-Windows
           cp build/bin/OurTaiko.exe release/OurTaiko-Windows/
           cp build/bin/*.dll release/OurTaiko-Windows/ 2>/dev/null || true
-          cp -r Skins release/OurTaiko-Windows/
+          cmake -DSKINS_DIR="$PWD/Skins" -DSKINS_DEST_DIR="$PWD/release/OurTaiko-Windows/Skins" -P cmake/package_skins.cmake
           cp -r shader release/OurTaiko-Windows/
           cp -r Songs release/OurTaiko-Windows/
           cp config.toml release/OurTaiko-Windows/
@@ -266,7 +269,7 @@ jobs:
           mkdir -p release/OurTaiko-macOS
           cp build/bin/OurTaiko release/OurTaiko-macOS/
           cp -R build/bin/OurTaiko.app release/OurTaiko-macOS/
-          cp -r Skins release/OurTaiko-macOS/
+          cmake -DSKINS_DIR="$PWD/Skins" -DSKINS_DEST_DIR="$PWD/release/OurTaiko-macOS/Skins" -P cmake/package_skins.cmake
           cp -r shader release/OurTaiko-macOS/
           cp -r Songs release/OurTaiko-macOS/
           cp config.toml release/OurTaiko-macOS/

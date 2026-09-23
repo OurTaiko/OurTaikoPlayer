@@ -1,5 +1,5 @@
 name: Prepare skin dependencies
-description: Restore or fetch the pinned skin submodules used for code generation and packaging
+description: Restore or fetch only the pinned Green skin used for CI code generation and packaging
 inputs:
   gitea-user:
     description: Optional username for private upstream skins
@@ -17,18 +17,15 @@ runs:
       id: revisions
       shell: bash
       run: |
-        key=$(git ls-tree HEAD -- Skins/PyTaikoGreen Skins/YataiDONRed Skins/YataiDONNijiiro | git hash-object --stdin)
+        key=$(git ls-tree HEAD -- Skins/PyTaikoGreen | git hash-object --stdin)
         echo "key=$key" >> "$GITHUB_OUTPUT"
 
     - name: Restore skins
       id: cache
       uses: actions/cache@v4
       with:
-        path: |
-          Skins/PyTaikoGreen
-          Skins/YataiDONRed
-          Skins/YataiDONNijiiro
-        key: skins-v2-${{ hashFiles('.gitmodules') }}-${{ steps.revisions.outputs.key }}
+        path: Skins/PyTaikoGreen
+        key: skins-green-v1-${{ hashFiles('.gitmodules') }}-${{ steps.revisions.outputs.key }}
 
     - name: Fetch skins
       if: steps.cache.outputs.cache-hit != 'true'
@@ -43,6 +40,3 @@ runs:
       shell: bash
       run: |
         test -s Skins/PyTaikoGreen/Graphics/skin_config.json
-        for skin in PyTaikoGreen YataiDONRed YataiDONNijiiro; do
-          test -d "Skins/$skin/Graphics"
-        done

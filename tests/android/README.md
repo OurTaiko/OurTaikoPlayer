@@ -22,8 +22,10 @@ cd android
 ./gradlew :app:copyGameAssets :app:mergeDebugAssets :app:compileDebugJavaWithJavac
 ```
 
-Inspect `app/build/generated/game_assets/GameData.zip`: all three skin directories,
+Inspect `app/build/generated/game_assets/GameData.zip`: only `Skins/PyTaikoGreen`,
 Songs, config.toml, LICENSE and NOTICE should be present, with no `.git` metadata.
+The other two skins need not exist in the checkout. Use `-PskinProfile=all` to
+package all three stock skins; see [packaging profiles](../../packaging/README.md).
 `GameData.count` must equal the number of non-directory ZIP entries. The APK must
 store the ZIP without a second compression layer. The packaged config enables
 touch input and VSync; repository config stays unchanged. The obsolete generated

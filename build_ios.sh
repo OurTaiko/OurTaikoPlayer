@@ -28,6 +28,7 @@ fi
     -DCMAKE_OSX_DEPLOYMENT_TARGET="${IOS_DEPLOYMENT_TARGET:-16.3}" \
     -DCMAKE_BUILD_TYPE="${CONFIGURATION:-Release}" \
     -DIOS_FFMPEG_PREFIX="$FFMPEG_PREFIX" \
+    -DOURTAIKO_SKIN_PROFILE="${OURTAIKO_SKIN_PROFILE:-green}" \
     -DIOS_DEVELOPMENT_TEAM="${IOS_DEVELOPMENT_TEAM:-}" \
     -DIOS_BUNDLE_IDENTIFIER="${IOS_BUNDLE_IDENTIFIER:-org.ourtaiko.fanmade}" "$@"
 BUILD_ARGS=(--build "$BUILD_DIR" --config "${CONFIGURATION:-Release}" --target OurTaiko --parallel "${JOBS:-$(sysctl -n hw.logicalcpu)}")
