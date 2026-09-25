@@ -297,7 +297,22 @@ static bool SDLCALL touch_event_watch(void* /*userdata*/, SDL_Event* event) {
         return true;
     }
 #endif
-    if (is_input_locked()) return 1;
+    const bool input_locked = is_input_locked();
+    // A transition may lock input between DOWN and UP. Always retire ended
+    // touches, otherwise a reused finger ID makes the next hit look held.
+    if (event->type == SDL_EVENT_FINGER_UP ||
+        event->type == SDL_EVENT_FINGER_CANCELED) {
+        SDL_FingerID id = event->tfinger.fingerID;
+        std::lock_guard<std::mutex> lock(input_mutex);
+        auto it = touch_id_to_vkey.find(id);
+        if (it != touch_id_to_vkey.end()) {
+            if (!input_locked) released_keys.insert(it->second);
+            touch_id_to_vkey.erase(it);
+        }
+        touch_drum_pressed.store(!touch_id_to_vkey.empty(), std::memory_order_relaxed);
+        return 1;
+    }
+    if (input_locked) return 1;
 
 #if defined(__linux__) && !defined(PLATFORM_ANDROID)
     if (event->type == SDL_EVENT_TEXT_INPUT && event->text.text) {
@@ -353,16 +368,6 @@ static bool SDLCALL touch_event_watch(void* /*userdata*/, SDL_Event* event) {
             last_input_ms.store(get_current_ms(), std::memory_order_relaxed);
             pressed_keys.insert(vkey);
         }
-    } else if (event->type == SDL_EVENT_FINGER_UP ||
-               event->type == SDL_EVENT_FINGER_CANCELED) {
-        SDL_FingerID id = event->tfinger.fingerID;
-        std::lock_guard<std::mutex> lock(input_mutex);
-        auto it = touch_id_to_vkey.find(id);
-        if (it != touch_id_to_vkey.end()) {
-            released_keys.insert(it->second);
-            touch_id_to_vkey.erase(it);
-        }
-        touch_drum_pressed.store(!touch_id_to_vkey.empty(), std::memory_order_relaxed);
     }
     return 1;
 }

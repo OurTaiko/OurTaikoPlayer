@@ -36,13 +36,15 @@ with tempfile.TemporaryDirectory(prefix="ourtaiko-upstream-") as directory:
               "-I" + str(out)]
     for project, subdir in [("raylib", "src"), ("spdlog", "include"),
                             ("rapidjson", "include"), ("tomlplusplus", "include"),
-                            ("sol2", "include"), ("lua", "src")]:
+                            ("sol2", "include"), ("lua", "src"), ("sdl3", "include")]:
         common.append("-I" + str(deps / (project + "-src") / subdir))
     checks = [
         ("exams", ["tests/dan/exams.cpp"], [ROOT / "Songs"]),
         ("difficulty", ["tests/song_select/difficulty_selection.cpp"], []),
         ("glyphs", ["tests/skins/glyph_fallback.cpp", "src/libs/text.cpp"], []),
         ("textures", ["tests/skins/texture_fallback.cpp", "src/libs/texture.cpp"], []),
+        ("touch", ["tests/input/touch_lock.cpp"], []),
+        ("touch-ios", ["-DOURTAIKO_PLATFORM_IOS", "tests/input/touch_lock.cpp"], []),
     ]
     for name, sources, arguments in checks:
         binary = out / name
