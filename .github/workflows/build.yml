@@ -410,8 +410,12 @@ jobs:
         run: |
           javac --release 11 -d "$RUNNER_TEMP/ourtaiko-android-tests" \
             android/app/src/main/java/org/ourtaiko/fanmade/GameDataInstaller.java \
+            android/app/src/main/java/org/ourtaiko/fanmade/UpdateFiles.java \
+            android/app/src/main/java/org/ourtaiko/fanmade/BundledSkinUpdater.java \
+            tests/android/UpdateFilesTest.java \
             tests/android/GameDataInstallerTest.java
           java -cp "$RUNNER_TEMP/ourtaiko-android-tests" org.ourtaiko.fanmade.GameDataInstallerTest
+          java -cp "$RUNNER_TEMP/ourtaiko-android-tests" org.ourtaiko.fanmade.UpdateFilesTest
 
       - name: Cache FFmpeg for Android arm64
         id: cache-ffmpeg
@@ -443,19 +447,33 @@ jobs:
           echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
           echo "cmake.dir=$ANDROID_SDK_ROOT/cmake/3.22.1" >> android/local.properties
 
+      - name: Allocate Android version code
+        run: echo "ANDROID_BUILD_VERSION_CODE=$(($(date +%s) - 1577836800))" >> "$GITHUB_ENV"
+
       - name: Build Release APK
         working-directory: android
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --no-daemon -POurTaikoCiDebugSigning=${{ steps.signing.outputs.debug_signing }}
+        run: ./gradlew assembleRelease --no-daemon -PourtaikoVersionCode="$ANDROID_BUILD_VERSION_CODE" -POurTaikoCiDebugSigning=${{ steps.signing.outputs.debug_signing }}
+
+      - name: Generate Android update metadata
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || format('build-{0}-{1}', github.run_number, github.run_attempt) }}
+        run: |
+          python3 tools/android_update_manifest.py android/app/build/outputs/apk/release/OurTaiko-Android.apk \
+            --version-code "$ANDROID_BUILD_VERSION_CODE" --tag "$RELEASE_TAG" \
+            --output android/app/build/outputs/apk/release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: OurTaiko-Android
-          path: android/app/build/outputs/apk/release/OurTaiko-Android.apk
+          path: |
+            android/app/build/outputs/apk/release/OurTaiko-Android.apk
+            android/app/build/outputs/apk/release/android-update.json
+            android/app/build/outputs/apk/release/checksums-android.sha256
           if-no-files-found: error
 
   build-ios:
@@ -465,7 +483,7 @@ jobs:
     env:
       CONFIGURATION: Release
       IOS_DEPLOYMENT_TARGET: "16.3"
-      IOS_BUNDLE_IDENTIFIER: org.ourtaiko.fanmade
+      IOS_BUNDLE_IDENTIFIER: org.ourtaiko.player
       # build_ios.sh disables signing when no development team is supplied.
       IOS_DEVELOPMENT_TEAM: ""
 
@@ -611,6 +629,8 @@ jobs:
           (cd windows && zip -r ../OurTaiko-Windows.zip .)
           (cd macos   && zip -r ../OurTaiko-macOS.zip .)
           cp android-out/OurTaiko-Android.apk OurTaiko-Android.apk
+          cp android-out/android-update.json android-update.json
+          cp android-out/checksums-android.sha256 checksums-android.sha256
           cp ios-out/OurTaiko-iOS-unsigned.ipa OurTaiko-iOS-unsigned.ipa
 
           # Metadata files
@@ -652,6 +672,8 @@ jobs:
             checksums-windows.sha256
             checksums-macos.sha256
             checksums-ios.sha256
+            checksums-android.sha256
+            android-update.json
           name: "OurTaiko [Latest Release]"
           tag_name: ${{ inputs.release_tag }}
           target_commitish: ${{ github.sha }}

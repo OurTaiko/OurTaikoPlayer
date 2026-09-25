@@ -41,15 +41,19 @@ No Apple development team is required for the unsigned Simulator build.
 ### iPhone or iPad
 
 ```sh
-IOS_DEVELOPMENT_TEAM=YOUR_TEAM_ID \
-IOS_BUNDLE_IDENTIFIER=org.ourtaiko.fanmade \
+IOS_DEVELOPMENT_TEAM=253AX6B3P2 \
+IOS_BUNDLE_IDENTIFIER=org.ourtaiko.player \
 ./build_ios.sh device
 open build-ios-device/OurTaiko.xcodeproj
 ```
 
+The local device build defaults to **Hoshino Network LLC (`253AX6B3P2`)**.
+Set `IOS_DEVELOPMENT_TEAM` to another team to override it, or explicitly set it to
+an empty string for an unsigned build. CI keeps that variable empty.
+
 Select your connected device and the OurTaiko scheme. Check Signing & Capabilities
 and select your Apple team, then Run. Enable Developer Mode on the device when
-Xcode requests it. Without a team, the script builds an unsigned `.app` for compile
+Xcode requests it. With `IOS_DEVELOPMENT_TEAM=""`, the script builds an unsigned `.app` for compile
 checks; it cannot be installed on a physical device until it is signed.
 Signing is disabled only for that command-line build, not in the generated Xcode
 project. Select your team and a unique Bundle Identifier in Xcode before running.
@@ -67,21 +71,20 @@ The existing [Release workflow](../.github/workflows/build.yml) includes a
 and select the branch containing the iOS changes. This runs all platform builds.
 
 The iOS job uses a `macos-15` runner and `./build_ios.sh device` to build an ARM64
-Release app for iOS 16.3 or later, with Bundle ID `org.ourtaiko.fanmade` and code signing
+Release app for iOS 16.3 or later, with Bundle ID `org.ourtaiko.player` and code signing
 disabled. It packages the app as `Payload/OurTaiko.app` inside
 `OurTaiko-iOS-unsigned.ipa`, alongside `checksums-ios.sha256`. No Apple certificate,
 provisioning profile, or App Store Connect credentials are required. There is no
 TestFlight or App Store upload step. Sign the downloaded IPA with your own signing
 tool and credentials before installing it on an iPhone or iPad.
 
-The job uses the existing `GITEA_USER` and `GITEA_TOKEN` repository secrets to
-fetch the private skin submodules. Fanmade networking is enabled by default and
-uses the installed app's TOML configuration; no API credentials are embedded in
-the build.
+The job prepares the pinned Green skin through the shared skin action. Fanmade
+networking is enabled by default and uses iOS system settings at runtime; no API
+credentials are embedded in the build.
 
 Download the `OurTaiko-iOS` artifact from the workflow run after the iOS job
-succeeds. Once all platform builds succeed, the existing `latest` GitHub Release
-also receives the unsigned IPA and its SHA-256 checksum file. An iOS failure is
+succeeds. When `publish_release` is selected and all platform builds succeed, the new
+explicit `release_tag` receives the unsigned IPA and its SHA-256 checksum file. An iOS failure is
 included in the build summary and prevents that combined Release from publishing.
 
 The FFmpeg cache is separate from macOS and Simulator builds and includes the
@@ -108,14 +111,10 @@ app is closed to reinstall missing bundled files. Bundled shaders alone are
 refreshed when their build-time content hash changes after an update. Uninstalling the app deletes its data container, so copy
 out any songs and scores you want to keep first.
 
-The September 22 upstream merge changes the Lua texture API and moves additional
-scene drawing into skin scripts. For an existing installation, back up Documents/Skins
-and replace any installed PyTaikoGreen, YataiDONNijiiro and YataiDONRed folders with
-the versions from this checkout before testing. Reinstalling the app over itself
-does not update those existing folders; removing only `.game-data-installed` also
-does not overwrite existing skin files. Keep Documents/Songs, settings, scores and
-custom skins. Older custom skin scripts using `tex.get_id` need migration to
-`tex.get_texture`; the merge does not provide the removed integer-ID API.
+The September 25 upstream merge uses the new `Fonts/` layout and matching skin
+scripts. During this testing phase, use a fresh installation of this version;
+no legacy font/skin migration is provided. Back up any songs, scores and settings
+before uninstalling. The new iOS bundle identifier is `org.ourtaiko.player`.
 
 Settings are read on each launch. Missing settings are recreated; invalid settings
 are backed up with an unused `.bak` suffix and replaced with complete defaults.

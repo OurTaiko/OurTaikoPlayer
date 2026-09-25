@@ -4,10 +4,15 @@
 #include "../../libs/screen.h"
 #include "../../libs/script.h"
 #include "../../libs/filesystem.h"
+#include "../../libs/animation.h"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <map>
+
+#ifdef DrawTextEx
+    #undef DrawTextEx
+#endif
 
 class DebugMenu {
 public:
@@ -26,6 +31,8 @@ public:
     static constexpr float FRAME_BTN_ROW_HEIGHT  = 20.0f;
     static constexpr float FRAMES_HEADER_HEIGHT  = 20.0f;
     static constexpr float FRAME_ROW_HEIGHT      = FRAME_THUMB_SIZE + 4.0f + FRAME_BTN_ROW_HEIGHT;
+    static constexpr float SCENE_LIST_HEIGHT     = 120.0f;
+    static constexpr float SWITCH_BTN_HEIGHT     = 28.0f;
     static constexpr int   LUA_TEXT_SIZE         = 12;
     static constexpr float LUA_LINE_HEIGHT       = 15.0f;
     static constexpr float LUA_BTN_HEIGHT        = 22.0f;
@@ -36,7 +43,29 @@ public:
     static constexpr double SOURCE_RESTAT_SECONDS = 0.5;
 
     bool open = false;
+    static constexpr double SLIDE_DURATION_MS = 180.0;
+    std::unique_ptr<MoveAnimation> slide_anim;
     int active_tab = 0;
+
+    float slide_offset() const {
+        if (slide_anim) return (float)slide_anim->attribute;
+        return open ? 0.0f : PANEL_WIDTH;
+    }
+
+    void toggle_open() {
+        const float current = slide_offset();
+        open = !open;
+        const float target = open ? 0.0f : PANEL_WIDTH;
+        slide_anim = std::make_unique<MoveAnimation>(
+            SLIDE_DURATION_MS, (int)(target - current), false, false, (int)current,
+            0.0, std::nullopt, std::nullopt, EaseType::Quadratic);
+        slide_anim->start();
+        if (open) ray::ShowCursor(); else ray::HideCursor();
+    }
+
+    bool is_visible() const {
+        return open || (slide_anim && !slide_anim->is_finished);
+    }
     int hovered_log_index = -1;
     int scroll_offset = 0;
 
@@ -63,6 +92,41 @@ public:
         selected_name.clear();
         selected_log_index = -1;
         source_cache.clear();
+    }
+
+    ray::Font ui_font{};
+    ray::Font code_font{};
+    bool fonts_loaded = false;
+
+    void load_fonts() {
+        ui_font = ray::LoadFontEx(resolve_skin_path("Fonts/debug_ui.ttf").string().c_str(), 32, nullptr, 0);
+        code_font = ray::LoadFontEx(resolve_skin_path("Fonts/debug_code.ttf").string().c_str(), 32, nullptr, 0);
+        ray::SetTextureFilter(ui_font.texture, ray::TEXTURE_FILTER_BILINEAR);
+        ray::SetTextureFilter(code_font.texture, ray::TEXTURE_FILTER_BILINEAR);
+        fonts_loaded = true;
+    }
+
+    void unload_fonts() {
+        if (!fonts_loaded) return;
+        ray::UnloadFont(ui_font);
+        ray::UnloadFont(code_font);
+        fonts_loaded = false;
+    }
+
+    void draw_text(const char* text, int x, int y, int font_size, ray::Color color) const {
+        ray::DrawTextEx(ui_font, text, {(float)x, (float)y}, (float)font_size, font_size / 10.0f, color);
+    }
+
+    int measure_text(const char* text, int font_size) const {
+        return (int)ray::MeasureTextEx(ui_font, text, (float)font_size, font_size / 10.0f).x;
+    }
+
+    void draw_code_text(const char* text, int x, int y, int font_size, ray::Color color) const {
+        ray::DrawTextEx(code_font, text, {(float)x, (float)y}, (float)font_size, font_size / 10.0f, color);
+    }
+
+    int measure_code_text(const char* text, int font_size) const {
+        return (int)ray::MeasureTextEx(code_font, text, (float)font_size, font_size / 10.0f).x;
     }
 
     FramedTexture* get_selected_framed() const {
@@ -92,26 +156,37 @@ public:
         edit_buffer.clear();
     }
 
-    void update(const ray::Camera2D& camera) {
-        if (ray::IsKeyPressed(ray::KEY_F7)) {
-            open = !open;
-            if (open) ray::ShowCursor(); else ray::HideCursor();
+    // Writes edit_data_buffer into whichever global_data/session_data field
+    // the Scenes tab's data editor is currently focused on.
+    void commit_data_edit() {
+        if (!editing_data_ptr) return;
+        if (editing_data_kind == DataField::Kind::STRING) {
+            *static_cast<std::string*>(editing_data_ptr) = edit_data_buffer;
+        } else {
+            try { *static_cast<int*>(editing_data_ptr) = std::stoi(edit_data_buffer); } catch (...) {}
         }
+        editing_data_ptr = nullptr;
+        edit_data_buffer.clear();
+    }
+
+    void update(const ray::Camera2D& camera) {
+        if (ray::IsKeyPressed(ray::KEY_F7)) toggle_open();
+        if (slide_anim) slide_anim->update(get_frame_ms());
 
         debug_draw_log_prev.swap(debug_draw_log);
         debug_draw_log.clear();
 
         const bool textures_tab_active = open && active_tab == 0;
         debug_log_draws = open && (active_tab == 0 || active_tab == 2);
-        if (!open) { commit_edit(); return; }
+        if (!open) { commit_edit(); commit_data_edit(); return; }
 
-        const float panel_x   = tex.screen_width - PANEL_WIDTH;
+        const float panel_x   = tex.screen_width - PANEL_WIDTH + slide_offset();
         const float tab_width = PANEL_WIDTH / TAB_COUNT;
         const ray::Vector2 mouse = ray::GetScreenToWorld2D(ray::GetMousePosition(), camera);
         const bool clicked = ray::IsMouseButtonPressed(ray::MOUSE_BUTTON_LEFT);
         const bool mouse_over_panel = mouse.x >= panel_x;
 
-        if (clicked) commit_edit();
+        if (clicked) { commit_edit(); commit_data_edit(); }
 
         if (editing_field < 0 && ray::IsKeyPressed(ray::KEY_TAB)) active_tab = (active_tab + 1) % TAB_COUNT;
 
@@ -121,9 +196,91 @@ public:
         }
 
         if (active_tab == 1) {
-            if (clicked && mouse_over_panel && mouse.y >= TAB_HEIGHT) {
-                int row = (int)((mouse.y - TAB_HEIGHT) / ROW_HEIGHT);
-                if (row >= 0 && row < (int)std::size(ALL_SCREENS)) requested_screen = ALL_SCREENS[row];
+            const float list_top     = TAB_HEIGHT;
+            const float list_bottom  = list_top + SCENE_LIST_HEIGHT;
+            const int   scene_count  = (int)std::size(ALL_SCREENS);
+            const int   scene_shown  = std::max(0, (int)(SCENE_LIST_HEIGHT / ROW_HEIGHT));
+            const int   scene_max_scroll = std::max(0, scene_count - scene_shown);
+            const bool  mouse_in_scenes  = mouse_over_panel && mouse.y >= list_top && mouse.y < list_bottom;
+
+            if (mouse_in_scenes) {
+                float wheel = ray::GetMouseWheelMove();
+                if (wheel != 0.0f) scene_scroll -= (int)wheel;
+            }
+            scene_scroll = std::clamp(scene_scroll, 0, scene_max_scroll);
+
+            if (clicked && mouse_in_scenes) {
+                int row = (int)((mouse.y - list_top) / ROW_HEIGHT) + scene_scroll;
+                if (row >= 0 && row < scene_count) selected_screen = ALL_SCREENS[row];
+            }
+
+            const float button_top    = list_bottom;
+            const float button_bottom = button_top + SWITCH_BTN_HEIGHT;
+            if (clicked && selected_screen.has_value() && mouse_over_panel &&
+                mouse.y >= button_top && mouse.y < button_bottom) {
+                requested_screen = selected_screen;
+            }
+
+            const float data_top    = button_bottom;
+            const float data_bottom = (float)tex.screen_height;
+            std::vector<DataField> fields = build_data_fields();
+            const int   field_count  = (int)fields.size();
+            const int   data_shown   = std::max(0, (int)((data_bottom - data_top) / ROW_HEIGHT));
+            const int   data_max_scroll = std::max(0, field_count - data_shown);
+            const bool  mouse_in_data   = mouse_over_panel && mouse.y >= data_top && mouse.y < data_bottom;
+
+            if (mouse_in_data) {
+                float wheel = ray::GetMouseWheelMove();
+                if (wheel != 0.0f) data_scroll -= (int)wheel;
+            }
+            data_scroll = std::clamp(data_scroll, 0, data_max_scroll);
+
+            if (clicked && mouse_in_data) {
+                int row = (int)((mouse.y - data_top) / ROW_HEIGHT) + data_scroll;
+                if (row >= 0 && row < field_count) {
+                    const DataField& f = fields[row];
+                    float row_y = data_top + (row - data_scroll) * ROW_HEIGHT;
+                    DataFieldRects r = data_field_rects(f, panel_x, row_y);
+                    const int step = ray::IsKeyDown(ray::KEY_LEFT_SHIFT) ? 10 : 1;
+                    if (f.kind == DataField::Kind::BOOL) {
+                        if (in_rect(mouse, r.value)) *f.b = !*f.b;
+                    } else if (f.kind == DataField::Kind::STRING) {
+                        if (in_rect(mouse, r.value)) {
+                            editing_data_ptr = f.s;
+                            editing_data_kind = f.kind;
+                            edit_data_buffer = *f.s;
+                        }
+                    } else if (f.kind == DataField::Kind::PLAYER_NUM) {
+                        if (in_rect(mouse, r.minus)) *f.pn = (PlayerNum)(((int)*f.pn + 5) % 6);
+                        else if (in_rect(mouse, r.plus)) *f.pn = (PlayerNum)(((int)*f.pn + 1) % 6);
+                    } else { // INT
+                        if (in_rect(mouse, r.minus)) *f.i -= step;
+                        else if (in_rect(mouse, r.plus)) *f.i += step;
+                        else if (in_rect(mouse, r.value)) {
+                            editing_data_ptr = f.i;
+                            editing_data_kind = f.kind;
+                            edit_data_buffer = std::to_string(*f.i);
+                        }
+                    }
+                }
+            }
+
+            if (editing_data_ptr) {
+                if (ray::IsKeyPressed(ray::KEY_ESCAPE)) {
+                    editing_data_ptr = nullptr;
+                    edit_data_buffer.clear();
+                } else if (ray::IsKeyPressed(ray::KEY_ENTER)) {
+                    commit_data_edit();
+                } else {
+                    if (ray::IsKeyPressed(ray::KEY_BACKSPACE) && !edit_data_buffer.empty()) edit_data_buffer.pop_back();
+                    int ch;
+                    while ((ch = ray::GetCharPressed()) > 0) {
+                        bool ok = (editing_data_kind == DataField::Kind::STRING)
+                            ? (ch >= 32 && ch < 127)
+                            : ((ch >= '0' && ch <= '9') || (ch == '-' && edit_data_buffer.empty()));
+                        if (ok && edit_data_buffer.size() < 64) edit_data_buffer += (char)ch;
+                    }
+                }
             }
             return;
         }
@@ -238,11 +395,11 @@ public:
     }
 
     void draw() {
-        if (!open) return;
+        if (!is_visible()) return;
 
         const float screen_w  = (float)tex.screen_width;
         const float screen_h  = (float)tex.screen_height;
-        const float panel_x   = screen_w - PANEL_WIDTH;
+        const float panel_x   = screen_w - PANEL_WIDTH + slide_offset();
         const float tab_width = PANEL_WIDTH / TAB_COUNT;
 
         ray::DrawRectangle((int)panel_x, 0, (int)PANEL_WIDTH, (int)screen_h, ray::Fade(ray::BLACK, 0.85f));
@@ -255,14 +412,14 @@ public:
             ray::DrawRectangleLines((int)tab_x, 0, (int)tab_width, (int)TAB_HEIGHT, ray::Fade(ray::WHITE, 0.4f));
 
             const char* label = tab_labels[i];
-            int label_w = ray::MeasureText(label, 16);
+            int label_w = measure_text(label, 16);
             int label_x = (int)(tab_x + (tab_width - label_w) * 0.5f);
             int label_y = (int)((TAB_HEIGHT - 16) * 0.5f);
-            ray::DrawText(label, label_x, label_y, 16, ray::WHITE);
+            draw_text(label, label_x, label_y, 16, ray::WHITE);
         }
 
         if (active_tab == 0) draw_textures_tab(panel_x, screen_h);
-        else if (active_tab == 1) draw_scenes_tab(panel_x);
+        else if (active_tab == 1) draw_scenes_tab(panel_x, screen_h);
         else if (active_tab == 2) draw_lua_tab(panel_x, screen_h);
     }
 
@@ -305,25 +462,25 @@ private:
         return start == std::string::npos ? std::string() : text.substr(start);
     }
 
-    static int lua_chars_per_row() {
-        int ten_chars = std::max(1, ray::MeasureText("ABCDEFGHIJ", LUA_TEXT_SIZE));
+    int lua_chars_per_row() const {
+        int ten_chars = std::max(1, measure_code_text("ABCDEFGHIJ", LUA_TEXT_SIZE));
         return std::max(1, (int)((PANEL_WIDTH - 12.0f) * 10.0f / ten_chars));
     }
 
-    static float draw_lua_rows(const std::string& text, float x, float y, int max_rows, ray::Color color) {
+    float draw_lua_rows(const std::string& text, float x, float y, int max_rows, ray::Color color) const {
         int budget = lua_chars_per_row();
         for (int row = 0; row < max_rows && (size_t)row * budget < text.size(); row++) {
-            ray::DrawText(text.substr((size_t)row * budget, budget).c_str(), (int)x, (int)y, LUA_TEXT_SIZE, color);
+            draw_code_text(text.substr((size_t)row * budget, budget).c_str(), (int)x, (int)y, LUA_TEXT_SIZE, color);
             y += LUA_LINE_HEIGHT;
         }
         return y;
     }
 
-    static void draw_lua_button(const ray::Rectangle& box, const char* label, bool enabled) {
+    void draw_lua_button(const ray::Rectangle& box, const char* label, bool enabled) const {
         ray::DrawRectangleRec(box, ray::Fade(ray::WHITE, enabled ? 0.2f : 0.05f));
         ray::DrawRectangleLinesEx(box, 1.0f, ray::Fade(ray::WHITE, 0.4f));
-        int label_w = ray::MeasureText(label, LUA_TEXT_SIZE);
-        ray::DrawText(label, (int)(box.x + (box.width - label_w) * 0.5f), (int)box.y + 5, LUA_TEXT_SIZE,
+        int label_w = measure_code_text(label, LUA_TEXT_SIZE);
+        draw_code_text(label, (int)(box.x + (box.width - label_w) * 0.5f), (int)box.y + 5, LUA_TEXT_SIZE,
                       enabled ? ray::WHITE : ray::GRAY);
     }
 
@@ -413,20 +570,225 @@ private:
         draw_lua_button(buttons.copy_path_line, "copy path:line", !path.empty());
     }
 
-    void draw_scenes_tab(float panel_x) {
-        for (size_t i = 0; i < std::size(ALL_SCREENS); i++) {
-            float row_y = TAB_HEIGHT + i * ROW_HEIGHT;
-            std::string name = screens_to_string(ALL_SCREENS[i]);
-            bool is_current = name == global_data.current_screen;
-            bool is_pending = requested_screen.has_value() && *requested_screen == ALL_SCREENS[i];
+    std::optional<Screens> selected_screen;
+    int scene_scroll = 0;
+    int data_scroll = 0;
 
-            if (is_current) {
-                ray::DrawRectangle((int)panel_x, (int)row_y, (int)PANEL_WIDTH, (int)ROW_HEIGHT, ray::Fade(ray::SKYBLUE, 0.35f));
-            } else if (is_pending) {
-                ray::DrawRectangle((int)panel_x, (int)row_y, (int)PANEL_WIDTH, (int)ROW_HEIGHT, ray::Fade(ray::YELLOW, 0.3f));
+    struct DataField {
+        std::string label;
+        enum class Kind { INT, BOOL, STRING, PLAYER_NUM } kind;
+        int* i = nullptr;
+        bool* b = nullptr;
+        std::string* s = nullptr;
+        PlayerNum* pn = nullptr;
+    };
+    void* editing_data_ptr = nullptr;
+    DataField::Kind editing_data_kind = DataField::Kind::INT;
+    std::string edit_data_buffer;
+
+    static const char* player_num_name(PlayerNum p) {
+        switch (p) {
+            case PlayerNum::ALL: return "ALL";
+            case PlayerNum::P1: return "P1";
+            case PlayerNum::P2: return "P2";
+            case PlayerNum::TWO_PLAYER: return "TWO_PLAYER";
+            case PlayerNum::DAN: return "DAN";
+            case PlayerNum::AI: return "AI";
+        }
+        return "?";
+    }
+
+    static const char* difficulty_name(int v) {
+        switch ((Difficulty)v) {
+            case Difficulty::BACK: return "BACK";
+            case Difficulty::MODIFIER: return "MODIFIER";
+            case Difficulty::NEIRO: return "NEIRO";
+            case Difficulty::EASY: return "EASY";
+            case Difficulty::NORMAL: return "NORMAL";
+            case Difficulty::HARD: return "HARD";
+            case Difficulty::ONI: return "ONI";
+            case Difficulty::URA: return "URA";
+            case Difficulty::TOWER: return "TOWER";
+            case Difficulty::DAN: return "DAN";
+        }
+        return "?";
+    }
+
+    static std::string data_field_display(const DataField& f) {
+        switch (f.kind) {
+            case DataField::Kind::INT: {
+                std::string text = std::to_string(*f.i);
+                if (f.label == "session.selected_difficulty")
+                    text += std::string(" ") + difficulty_name(*f.i);
+                return text;
             }
-            ray::Color color = is_current ? ray::SKYBLUE : (is_pending ? ray::YELLOW : ray::WHITE);
-            ray::DrawText(name.c_str(), (int)panel_x + 4, (int)row_y + 3, 14, color);
+            case DataField::Kind::BOOL: return *f.b ? "true" : "false";
+            case DataField::Kind::STRING: return *f.s;
+            case DataField::Kind::PLAYER_NUM: return player_num_name(*f.pn);
+        }
+        return "";
+    }
+
+    static std::vector<DataField> build_data_fields() {
+        std::vector<DataField> f;
+        GlobalData& g = global_data;
+        f.push_back({"player_num", DataField::Kind::PLAYER_NUM, nullptr, nullptr, nullptr, &g.player_num});
+        f.push_back({"first_login_player", DataField::Kind::PLAYER_NUM, nullptr, nullptr, nullptr, &g.first_login_player});
+        f.push_back({"entry_joined_seat", DataField::Kind::PLAYER_NUM, nullptr, nullptr, nullptr, &g.entry_joined_seat});
+        f.push_back({"songs_played", DataField::Kind::INT, &g.songs_played});
+        f.push_back({"total_songs", DataField::Kind::INT, &g.total_songs});
+        f.push_back({"force_auto_play", DataField::Kind::BOOL, nullptr, &g.force_auto_play});
+        f.push_back({"returned_from_result", DataField::Kind::BOOL, nullptr, &g.returned_from_result});
+        f.push_back({"entry_join_pending", DataField::Kind::BOOL, nullptr, &g.entry_join_pending});
+        f.push_back({"live_combo", DataField::Kind::INT, &g.live_combo});
+        f.push_back({"live_score", DataField::Kind::INT, &g.live_score});
+        f.push_back({"live_drumroll", DataField::Kind::INT, &g.live_drumroll});
+        f.push_back({"live_gogo", DataField::Kind::BOOL, nullptr, &g.live_gogo});
+        f.push_back({"live_is_clear", DataField::Kind::BOOL, nullptr, &g.live_is_clear});
+        f.push_back({"live_is_rainbow", DataField::Kind::BOOL, nullptr, &g.live_is_rainbow});
+        f.push_back({"live_skip_count", DataField::Kind::INT, &g.live_skip_count});
+        f.push_back({"live_skip_used", DataField::Kind::BOOL, nullptr, &g.live_skip_used});
+
+        size_t idx = std::min((size_t)g.player_num, g.session_data.size() - 1);
+        SessionData& sd = g.session_data[idx];
+        f.push_back({"session.selected_difficulty", DataField::Kind::INT, &sd.selected_difficulty});
+        f.push_back({"session.genre_index", DataField::Kind::INT, &sd.genre_index});
+        f.push_back({"session.song_title", DataField::Kind::STRING, nullptr, nullptr, &sd.song_title});
+        f.push_back({"session.song_subtitle", DataField::Kind::STRING, nullptr, nullptr, &sd.song_subtitle});
+        f.push_back({"session.subtitle_full_display", DataField::Kind::BOOL, nullptr, &sd.song_subtitle_full_display});
+        f.push_back({"session.song_hash", DataField::Kind::STRING, nullptr, nullptr, &sd.song_hash});
+        f.push_back({"session.dan_color", DataField::Kind::INT, &sd.dan_color});
+        f.push_back({"session.dan_rank", DataField::Kind::INT, &sd.dan_rank});
+        f.push_back({"session.dan_index", DataField::Kind::INT, &sd.dan_index});
+        f.push_back({"session.dan_index_max", DataField::Kind::INT, &sd.dan_index_max});
+        f.push_back({"session.dan_gaiden", DataField::Kind::BOOL, nullptr, &sd.dan_gaiden});
+        return f;
+    }
+
+    struct DataFieldRects { ray::Rectangle minus, plus, value; };
+
+    static DataFieldRects data_field_rects(const DataField& f, float panel_x, float row_y) {
+        float btn_size = ROW_HEIGHT - 4.0f;
+        if (f.kind == DataField::Kind::BOOL || f.kind == DataField::Kind::STRING) {
+            ray::Rectangle value = {panel_x + 148, row_y + 1, PANEL_WIDTH - 148 - 6, ROW_HEIGHT - 2};
+            return {{}, {}, value};
+        }
+        ray::Rectangle minus = {panel_x + 148, row_y + 1, btn_size, btn_size};
+        ray::Rectangle value = {minus.x + btn_size + 4, row_y + 1, 88.0f, btn_size};
+        ray::Rectangle plus  = {value.x + value.width + 4, row_y + 1, btn_size, btn_size};
+        return {minus, plus, value};
+    }
+
+    void draw_scenes_tab(float panel_x, float screen_h) {
+        const float list_top    = TAB_HEIGHT;
+        const float list_bottom = list_top + SCENE_LIST_HEIGHT;
+        const int   scene_count = (int)std::size(ALL_SCREENS);
+        const int   scene_shown = std::max(0, (int)(SCENE_LIST_HEIGHT / ROW_HEIGHT));
+
+        const int scissor_x0 = virtual_to_screen_x(panel_x);
+        const int scissor_x1 = virtual_to_screen_x(panel_x + PANEL_WIDTH);
+        int scissor_y0 = virtual_to_screen_y(list_top);
+        int scissor_y1 = virtual_to_screen_y(list_bottom);
+        ray::BeginScissorMode(scissor_x0, scissor_y0, scissor_x1 - scissor_x0, scissor_y1 - scissor_y0);
+        for (int row = 0; row < scene_shown; row++) {
+            int idx = row + scene_scroll;
+            if (idx >= scene_count) break;
+            float row_y = list_top + row * ROW_HEIGHT;
+            std::string name = screens_to_string(ALL_SCREENS[idx]);
+            bool is_current  = name == global_data.current_screen;
+            bool is_selected = selected_screen.has_value() && *selected_screen == ALL_SCREENS[idx];
+
+            if (is_selected) {
+                ray::DrawRectangle((int)panel_x, (int)row_y, (int)PANEL_WIDTH, (int)ROW_HEIGHT, ray::Fade(ray::YELLOW, 0.3f));
+            } else if (is_current) {
+                ray::DrawRectangle((int)panel_x, (int)row_y, (int)PANEL_WIDTH, (int)ROW_HEIGHT, ray::Fade(ray::SKYBLUE, 0.35f));
+            }
+            ray::Color color = is_selected ? ray::YELLOW : (is_current ? ray::SKYBLUE : ray::WHITE);
+            draw_text(name.c_str(), (int)panel_x + 4, (int)row_y + 3, 14, color);
+        }
+        ray::EndScissorMode();
+
+        if (scene_count > scene_shown) {
+            float track_x = panel_x + PANEL_WIDTH - SCROLLBAR_WIDTH;
+            ray::DrawRectangle((int)track_x, (int)list_top, (int)SCROLLBAR_WIDTH, (int)SCENE_LIST_HEIGHT, ray::Fade(ray::WHITE, 0.1f));
+            int max_scroll = scene_count - scene_shown;
+            float thumb_h = std::max(10.0f, SCENE_LIST_HEIGHT * ((float)scene_shown / scene_count));
+            float thumb_y = list_top + (max_scroll > 0 ? (scene_scroll / (float)max_scroll) * (SCENE_LIST_HEIGHT - thumb_h) : 0.0f);
+            ray::DrawRectangle((int)track_x, (int)thumb_y, (int)SCROLLBAR_WIDTH, (int)thumb_h, ray::Fade(ray::WHITE, 0.5f));
+        }
+
+        const float button_top = list_bottom;
+        ray::Rectangle button = {panel_x + 6, button_top + 3, PANEL_WIDTH - 12, SWITCH_BTN_HEIGHT - 6};
+        bool enabled = selected_screen.has_value();
+        ray::DrawRectangleRec(button, ray::Fade(ray::WHITE, enabled ? 0.25f : 0.08f));
+        ray::DrawRectangleLinesEx(button, 1.0f, enabled ? ray::YELLOW : ray::Fade(ray::WHITE, 0.3f));
+        std::string label = enabled ? ("Switch to " + screens_to_string(*selected_screen)) : "Select a scene above";
+        int label_w = measure_text(label.c_str(), 14);
+        draw_text(label.c_str(), (int)(button.x + (button.width - label_w) * 0.5f), (int)button.y + 6, 14,
+                      enabled ? ray::YELLOW : ray::GRAY);
+
+        const float data_top    = button_top + SWITCH_BTN_HEIGHT;
+        const float data_bottom = screen_h;
+        std::vector<DataField> fields = build_data_fields();
+        const int   field_count = (int)fields.size();
+        const int   data_shown  = std::max(0, (int)((data_bottom - data_top) / ROW_HEIGHT));
+
+        ray::DrawLine((int)panel_x, (int)data_top, (int)(panel_x + PANEL_WIDTH), (int)data_top, ray::Fade(ray::WHITE, 0.4f));
+        scissor_y0 = virtual_to_screen_y(data_top);
+        scissor_y1 = virtual_to_screen_y(data_bottom);
+        ray::BeginScissorMode(scissor_x0, scissor_y0, scissor_x1 - scissor_x0, scissor_y1 - scissor_y0);
+        for (int row = 0; row < data_shown; row++) {
+            int idx = row + data_scroll;
+            if (idx >= field_count) break;
+            const DataField& f = fields[idx];
+            float row_y = data_top + row * ROW_HEIGHT;
+            DataFieldRects r = data_field_rects(f, panel_x, row_y);
+
+            draw_text(f.label.c_str(), (int)panel_x + 4, (int)row_y + 4, 12, ray::WHITE);
+
+            if (f.kind == DataField::Kind::BOOL) {
+                bool v = *f.b;
+                ray::DrawRectangleRec(r.value, ray::Fade(v ? ray::GREEN : ray::RED, 0.25f));
+                ray::DrawRectangleLinesEx(r.value, 1.0f, ray::Fade(ray::WHITE, 0.4f));
+                draw_text(v ? "true" : "false", (int)r.value.x + 4, (int)r.value.y + 3, 13, ray::WHITE);
+            } else if (f.kind == DataField::Kind::STRING) {
+                bool is_editing = editing_data_ptr == static_cast<void*>(f.s);
+                ray::DrawRectangleRec(r.value, ray::Fade(ray::WHITE, is_editing ? 0.25f : 0.1f));
+                ray::DrawRectangleLinesEx(r.value, 1.0f, is_editing ? ray::SKYBLUE : ray::Fade(ray::WHITE, 0.4f));
+                std::string text = is_editing ? edit_data_buffer : *f.s;
+                if (is_editing && std::fmod(ray::GetTime(), 1.0) < 0.5) text += "|";
+                draw_text(text.c_str(), (int)r.value.x + 4, (int)r.value.y + 3, 13, ray::WHITE);
+            } else if (f.kind == DataField::Kind::PLAYER_NUM) {
+                ray::DrawRectangleRec(r.minus, ray::Fade(ray::WHITE, 0.2f));
+                draw_text("-", (int)r.minus.x + 5, (int)r.minus.y, 14, ray::WHITE);
+                ray::DrawRectangleRec(r.plus, ray::Fade(ray::WHITE, 0.2f));
+                draw_text("+", (int)r.plus.x + 4, (int)r.plus.y, 14, ray::WHITE);
+                const char* name = player_num_name(*f.pn);
+                int name_w = measure_text(name, 13);
+                draw_text(name, (int)(r.value.x + (r.value.width - name_w) * 0.5f), (int)r.value.y + 3, 13, ray::WHITE);
+            } else { // INT
+                bool is_editing = editing_data_ptr == static_cast<void*>(f.i);
+                ray::DrawRectangleRec(r.minus, ray::Fade(ray::WHITE, 0.2f));
+                draw_text("-", (int)r.minus.x + 5, (int)r.minus.y, 14, ray::WHITE);
+                ray::DrawRectangleRec(r.plus, ray::Fade(ray::WHITE, 0.2f));
+                draw_text("+", (int)r.plus.x + 4, (int)r.plus.y, 14, ray::WHITE);
+                ray::DrawRectangleRec(r.value, ray::Fade(ray::WHITE, is_editing ? 0.25f : 0.1f));
+                ray::DrawRectangleLinesEx(r.value, 1.0f, is_editing ? ray::SKYBLUE : ray::Fade(ray::WHITE, 0.4f));
+                std::string text = is_editing ? edit_data_buffer : data_field_display(f);
+                if (is_editing && std::fmod(ray::GetTime(), 1.0) < 0.5) text += "|";
+                draw_text(text.c_str(), (int)r.value.x + 4, (int)r.value.y + 3, 12, ray::WHITE);
+            }
+        }
+        ray::EndScissorMode();
+
+        if (field_count > data_shown) {
+            float track_x = panel_x + PANEL_WIDTH - SCROLLBAR_WIDTH;
+            float area_h = data_bottom - data_top;
+            ray::DrawRectangle((int)track_x, (int)data_top, (int)SCROLLBAR_WIDTH, (int)area_h, ray::Fade(ray::WHITE, 0.1f));
+            int max_scroll = field_count - data_shown;
+            float thumb_h = std::max(10.0f, area_h * ((float)data_shown / field_count));
+            float thumb_y = data_top + (max_scroll > 0 ? (data_scroll / (float)max_scroll) * (area_h - thumb_h) : 0.0f);
+            ray::DrawRectangle((int)track_x, (int)thumb_y, (int)SCROLLBAR_WIDTH, (int)thumb_h, ray::Fade(ray::WHITE, 0.5f));
         }
     }
 
@@ -486,8 +848,8 @@ private:
                 ? ray::TextFormat("x/y move it 1:1; x2/y2 change by x%.2f", entry.scale)
                 : "x/y move it 1:1 whatever the caller adds";
         ray::DrawRectangle((int)panel_x, (int)top, (int)PANEL_WIDTH, (int)VERDICT_HEIGHT, ray::Fade(color, 0.3f));
-        ray::DrawText(headline.c_str(), (int)panel_x + 6, (int)top + 3, 12, ray::WHITE);
-        ray::DrawText(advice.c_str(), (int)panel_x + 6, (int)top + 18, 12, ray::Fade(ray::WHITE, 0.75f));
+        draw_text(headline.c_str(), (int)panel_x + 6, (int)top + 3, 12, ray::WHITE);
+        draw_text(advice.c_str(), (int)panel_x + 6, (int)top + 18, 12, ray::Fade(ray::WHITE, 0.75f));
     }
 
     struct FieldButtons { ray::Rectangle minus, plus, value; };
@@ -586,7 +948,11 @@ private:
 
         const DrawLogEntry* selected = find_selected_entry();
 
-        ray::BeginScissorMode((int)panel_x, (int)list_top, (int)PANEL_WIDTH, (int)(list_bottom - list_top));
+        int scissor_x0 = virtual_to_screen_x(panel_x);
+        int scissor_x1 = virtual_to_screen_x(panel_x + PANEL_WIDTH);
+        int scissor_y0 = virtual_to_screen_y(list_top);
+        int scissor_y1 = virtual_to_screen_y(list_bottom);
+        ray::BeginScissorMode(scissor_x0, scissor_y0, scissor_x1 - scissor_x0, scissor_y1 - scissor_y0);
         for (int row = 0; row < rows_shown; row++) {
             int ridx = row + scroll_offset;
             if (ridx >= row_count) break;
@@ -596,8 +962,8 @@ private:
             if (vr.is_header) {
                 bool expanded = expanded_subsets.count(vr.subset) != 0;
                 ray::DrawRectangle((int)panel_x, (int)row_y, (int)PANEL_WIDTH, (int)ROW_HEIGHT, ray::Fade(ray::WHITE, 0.12f));
-                ray::DrawText(expanded ? "v" : ">", (int)panel_x + 4, (int)row_y + 3, 14, ray::WHITE);
-                ray::DrawText(vr.label.c_str(), (int)panel_x + 18, (int)row_y + 3, 14, ray::WHITE);
+                draw_text(expanded ? "v" : ">", (int)panel_x + 4, (int)row_y + 3, 14, ray::WHITE);
+                draw_text(vr.label.c_str(), (int)panel_x + 18, (int)row_y + 3, 14, ray::WHITE);
                 continue;
             }
 
@@ -610,7 +976,7 @@ private:
                 ray::DrawRectangle((int)panel_x, (int)row_y, (int)PANEL_WIDTH, (int)ROW_HEIGHT, ray::Fade(ray::YELLOW, 0.3f));
             }
             ray::Color color = is_selected ? ray::SKYBLUE : (is_hovered ? ray::YELLOW : ray::WHITE);
-            ray::DrawText(vr.label.c_str(), (int)panel_x + 20, (int)row_y + 3, 14, color);
+            draw_text(vr.label.c_str(), (int)panel_x + 20, (int)row_y + 3, 14, color);
         }
         ray::EndScissorMode();
 
@@ -637,9 +1003,9 @@ private:
             ray::DrawRectangleLinesEx(*box_rect, 2.0f, ray::YELLOW);
             float label_y = box_rect->y - 20.0f;
             if (label_y < 0) label_y = box_rect->y + box_rect->height + 2.0f;
-            int label_w = ray::MeasureText(box_name.c_str(), 18);
+            int label_w = measure_text(box_name.c_str(), 18);
             ray::DrawRectangle((int)box_rect->x - 2, (int)label_y - 2, label_w + 4, 22, ray::Fade(ray::BLACK, 0.8f));
-            ray::DrawText(box_name.c_str(), (int)box_rect->x, (int)label_y, 18, ray::YELLOW);
+            draw_text(box_name.c_str(), (int)box_rect->x, (int)label_y, 18, ray::YELLOW);
         }
 
         draw_edit_panel(panel_x, list_bottom);
@@ -650,15 +1016,15 @@ private:
         ray::DrawLine((int)panel_x, (int)edit_top, (int)(panel_x + PANEL_WIDTH), (int)edit_top, ray::Fade(ray::WHITE, 0.4f));
 
         if (!has_selection) {
-            ray::DrawText("Click a texture to select it", (int)panel_x + 8, (int)edit_top + 8, 14, ray::GRAY);
+            draw_text("Click a texture to select it", (int)panel_x + 8, (int)edit_top + 8, 14, ray::GRAY);
             return;
         }
 
-        ray::DrawText(selected_name.c_str(), (int)panel_x + 8, (int)edit_top + 8, 16, ray::WHITE);
+        draw_text(selected_name.c_str(), (int)panel_x + 8, (int)edit_top + 8, 16, ray::WHITE);
 
         const DrawLogEntry* entry = find_selected_entry();
         if (!entry) {
-            ray::DrawText("(not drawn this frame)", (int)panel_x + 8, (int)edit_top + 26, 14, ray::GRAY);
+            draw_text("(not drawn this frame)", (int)panel_x + 8, (int)edit_top + 26, 14, ray::GRAY);
             return;
         }
         draw_verdict(*entry, panel_x, edit_top + VERDICT_TOP);
@@ -668,7 +1034,7 @@ private:
 
         const char* info = ray::TextFormat("%dx%d px, %d frame(s)", obj->width,
                                             obj->height, obj->frame_count());
-        ray::DrawText(info, (int)panel_x + 8, (int)edit_top + 26, 14, ray::GRAY);
+        draw_text(info, (int)panel_x + 8, (int)edit_top + 26, 14, ray::GRAY);
 
         for (int i = 0; i < 4; i++) {
             int* value = field_ptr(i);
@@ -676,12 +1042,12 @@ private:
             FieldButtons b = field_buttons(i, panel_x, edit_top);
             float row_y = edit_top + EDIT_FIELDS_TOP + i * EDIT_ROW_HEIGHT;
 
-            ray::DrawText(field_label(i), (int)panel_x + 8, (int)row_y + 4, 14, ray::WHITE);
+            draw_text(field_label(i), (int)panel_x + 8, (int)row_y + 4, 14, ray::WHITE);
 
             ray::DrawRectangleRec(b.minus, ray::Fade(ray::WHITE, 0.2f));
-            ray::DrawText("-", (int)b.minus.x + 6, (int)b.minus.y + 1, 16, ray::WHITE);
+            draw_text("-", (int)b.minus.x + 6, (int)b.minus.y + 1, 16, ray::WHITE);
             ray::DrawRectangleRec(b.plus, ray::Fade(ray::WHITE, 0.2f));
-            ray::DrawText("+", (int)b.plus.x + 5, (int)b.plus.y + 1, 16, ray::WHITE);
+            draw_text("+", (int)b.plus.x + 5, (int)b.plus.y + 1, 16, ray::WHITE);
 
             bool is_editing = (editing_field == i);
             ray::DrawRectangleRec(b.value, ray::Fade(ray::WHITE, is_editing ? 0.25f : 0.1f));
@@ -689,7 +1055,7 @@ private:
 
             std::string text = is_editing ? edit_buffer : std::to_string(*value);
             if (is_editing && std::fmod(ray::GetTime(), 1.0) < 0.5) text += "|";
-            ray::DrawText(text.c_str(), (int)b.value.x + 4, (int)b.value.y + 4, 14, ray::WHITE);
+            draw_text(text.c_str(), (int)b.value.x + 4, (int)b.value.y + 4, 14, ray::WHITE);
         }
 
         draw_frames_section(panel_x, edit_top);
@@ -703,7 +1069,7 @@ private:
         const float frames_top = edit_top + EDIT_PANEL_HEIGHT;
         const int cols = frame_grid_cols();
 
-        ray::DrawText(ray::TextFormat("Frames (%d)", frame_count), (int)panel_x + 8, (int)frames_top + 2, 14, ray::WHITE);
+        draw_text(ray::TextFormat("Frames (%d)", frame_count), (int)panel_x + 8, (int)frames_top + 2, 14, ray::WHITE);
 
         for (int idx = 0; idx < frame_count; idx++) {
             float cell_x = panel_x + (idx % cols) * FRAME_CELL_WIDTH;
@@ -719,14 +1085,14 @@ private:
 
             FrameCellButtons b = frame_cell_buttons(idx, panel_x, frames_top);
             ray::DrawRectangleRec(b.left, ray::Fade(ray::WHITE, idx > 0 ? 0.2f : 0.05f));
-            ray::DrawText("<", (int)b.left.x + 4, (int)b.left.y, 14, idx > 0 ? ray::WHITE : ray::GRAY);
+            draw_text("<", (int)b.left.x + 4, (int)b.left.y, 14, idx > 0 ? ray::WHITE : ray::GRAY);
 
             const char* index_text = ray::TextFormat("%d", idx);
-            int index_w = ray::MeasureText(index_text, 14);
-            ray::DrawText(index_text, (int)(cell_x + (FRAME_CELL_WIDTH - index_w) * 0.5f), (int)b.left.y + 2, 14, ray::WHITE);
+            int index_w = measure_text(index_text, 14);
+            draw_text(index_text, (int)(cell_x + (FRAME_CELL_WIDTH - index_w) * 0.5f), (int)b.left.y + 2, 14, ray::WHITE);
 
             ray::DrawRectangleRec(b.right, ray::Fade(ray::WHITE, idx < frame_count - 1 ? 0.2f : 0.05f));
-            ray::DrawText(">", (int)b.right.x + 4, (int)b.right.y, 14, idx < frame_count - 1 ? ray::WHITE : ray::GRAY);
+            draw_text(">", (int)b.right.x + 4, (int)b.right.y, 14, idx < frame_count - 1 ? ray::WHITE : ray::GRAY);
         }
     }
 };

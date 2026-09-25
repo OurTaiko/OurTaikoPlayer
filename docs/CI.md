@@ -19,11 +19,11 @@ gh run list --repo OurTaiko/OurTaiko --workflow build.yml
 需要正式发布时，在 Run workflow 中勾选 `publish_release`，或执行：
 
 ```sh
-gh workflow run build.yml --repo OurTaiko/OurTaiko --ref master -f publish_release=true
+gh workflow run build.yml --repo OurTaiko/OurTaiko --ref master -f publish_release=true -f release_tag=v0.0.5
 ```
 
-所有平台构建成功后，发布任务创建 `build-<run_number>-<run_attempt>` 标签，
-指向本次构建的提交，避免复用 fork 从上游继承的旧 `latest` 标签。
+正式发布还必须填写尚未存在的 `release_tag`（例如 `v0.0.5`）。所有平台构建
+成功后，发布任务创建该标签并指向本次构建提交，不复用继承的旧 `latest` 标签。
 只有发布任务获得 `contents: write` 权限。iOS 产物仍是需要自行签名的 unsigned IPA。
 
 上述行为需要先将本地工作流修改提交并推送到 GitHub。
@@ -49,7 +49,7 @@ git -c http.https://ese.tjadataba.se/.sslVerify=false submodule update --init --
 
 ## Android 内置资源与首次启动
 
-Gradle 的 `packGameData` 任务把三个皮肤、仓库内的 Songs、默认 `config.toml`、
+Gradle 的 `packGameData` 任务把所选配置的皮肤（默认仅 Green）、仓库内的 Songs、默认 `config.toml`、
 LICENSE 和 NOTICE 合成 `GameData.zip`，同时生成文件总数 `GameData.count`，排除 Git 元数据。
 `copyGameAssets` 保留直接加载的着色器和许可证；APK 不再次压缩 ZIP。默认配置启用触摸输入和 VSync，
 本地构建与 CI 使用相同的打包逻辑，不修改仓库中的配置文件。
@@ -124,3 +124,11 @@ Android 工具链使用 AGP 8.7.3、Gradle 8.9、JDK 17、SDK 35 和 NDK 27.3.13
 参考：[Android 应用签名](https://developer.android.com/studio/publish/app-signing)、
 [AGP 8.7 兼容性](https://developer.android.com/build/releases/agp-8-7-0-release-notes)、
 [GitHub Actions Secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)。
+
+## Android 应用自动更新
+
+Release 构建为 APK 分配递增的版本号，生成 `android-update.json` 与
+`checksums-android.sha256`，随 APK 一起上传 artifact 和正式 Release。
+启动时从 OurTaiko Release 检查新版，可跳过下载；安装需 Android 系统确认。
+不接入上游独立在线皮肤更新，内置皮肤随已安装 APK 更新并备份旧目录。
+协议、签名限制和验证范围见 [Android 更新说明](ANDROID_UPDATES.md)。

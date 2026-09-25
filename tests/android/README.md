@@ -5,14 +5,21 @@ Run the real installer on a temporary directory with a small in-memory ZIP archi
 ```sh
 javac --release 11 -d /tmp/ourtaiko-android-tests \
   android/app/src/main/java/org/ourtaiko/fanmade/GameDataInstaller.java \
+  android/app/src/main/java/org/ourtaiko/fanmade/UpdateFiles.java \
+  android/app/src/main/java/org/ourtaiko/fanmade/BundledSkinUpdater.java \
+  tests/android/UpdateFilesTest.java \
   tests/android/GameDataInstallerTest.java
 java -cp /tmp/ourtaiko-android-tests org.ourtaiko.fanmade.GameDataInstallerTest
+java -cp /tmp/ourtaiko-android-tests org.ourtaiko.fanmade.UpdateFilesTest
 ```
 
 Covers first install, zero APK reads on repeat launch (even after resources or
 config are deleted or the bundle changes), one-time legacy migration, user file
 preservation, Unicode paths, interrupted copy cleanup/retry, incomplete archive
 rejection, unsafe ZIP paths, and cancellation. Only its temporary data is removed.
+The separate skin updater reads its small version manifest on each launch and
+replaces bundled skins only when that version changes. See [Android updates](../../docs/ANDROID_UPDATES.md)
+for transfer/backup coverage and required signed-device checks.
 Configuration recovery is tested separately in [the settings fixture](../config/README.md).
 
 With Android SDK/NDK and the skin submodules available, check Gradle packaging:

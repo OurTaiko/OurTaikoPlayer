@@ -91,7 +91,7 @@ public:
 
     void draw_players();
 
-    void draw_overlay();
+    void draw_overlay(bool with_song_info = true);
 
     void draw() override;
 };

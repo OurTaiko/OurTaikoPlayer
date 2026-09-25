@@ -25,15 +25,17 @@ private:
     std::unique_ptr<OutlinedText> maker_credit;
     double rotation_started_at = -1;
     bool showing_maker = false;
+    std::unique_ptr<OutlinedText> genre_text;
     std::unique_ptr<SongNum> song_num;
     std::unique_ptr<SongNum> song_max;
 
     TextureObject* t_genre = nullptr;
     TextureObject* t_song_num_plate = nullptr;
+    std::shared_ptr<ray::Shader> genre_shader;
 
 public:
     SongInfo() = default;
-    SongInfo(const std::string& song_name, const std::string& subtitle, bool show_subtitle, int genre, int song_num, int song_total = 0, const std::string& maker = "");
+    SongInfo(const std::string& song_name, const std::string& subtitle, bool show_subtitle, int genre, int song_num, int song_total = 0, const std::string& maker = "", const std::string& genre_label = "");
 
     void update(double current_ms);
     void draw();

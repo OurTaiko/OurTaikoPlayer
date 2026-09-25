@@ -42,11 +42,25 @@ tasks.register('packGameData', Zip) {
         }
     }
     outputs.file(gameAssetsDir.map { it.file('GameData.count') })
+    outputs.file(gameAssetsDir.map { it.file('GameData.skins') })
     doLast {
         def zip = new java.util.zip.ZipFile(archiveFile.get().asFile)
         try {
             def count = zip.entries().toList().count { !it.directory }
             new File(gameAssetsDir.get().asFile, 'GameData.count').text = count.toString()
+            def digest = java.security.MessageDigest.getInstance('SHA-256')
+            archiveFile.get().asFile.withInputStream { input ->
+                byte[] buffer = new byte[65536]
+                int n
+                while ((n = input.read(buffer)) != -1) digest.update(buffer, 0, n)
+            }
+            def revision = digest.digest().encodeHex().toString()
+            def skinCounts = packagedSkins.collect { skin ->
+                def files = zip.entries().toList().count { !it.directory && it.name.startsWith("Skins/${skin}/") }
+                "${skin} ${files}"
+            }
+            new File(gameAssetsDir.get().asFile, 'GameData.skins').text = revision + '\n' + skinCounts.join('\n') + '\n'
+
         } finally {
             zip.close()
         }
@@ -67,5 +81,5 @@ tasks.register('copyGameAssets', Sync) {
     into gameAssetsDir
     from(new File(repositoryDir, 'shader/es')) { into 'shader/es' }
     from(repositoryDir) { include 'LICENSE', 'NOTICE' }
-    preserve { include 'GameData.zip', 'GameData.count' }
+    preserve { include 'GameData.zip', 'GameData.count', 'GameData.skins' }
 }

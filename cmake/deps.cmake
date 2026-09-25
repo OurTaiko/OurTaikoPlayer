@@ -76,7 +76,6 @@ FetchContent_Declare(
   GIT_TAG        master
   GIT_SHALLOW    TRUE
   UPDATE_DISCONNECTED TRUE
-  PATCH_COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_LIST_DIR}/patch_raylib_ctype.cmake
 )
 FetchContent_GetProperties(raylib)
 FetchContent_MakeAvailable(raylib)

@@ -68,14 +68,18 @@ std::optional<DanSongEntry> DanNavigator::load_song_entry(const rapidjson::Value
         }
 
         int genre = (int)GenreIndex::NAMCO;
+        std::string genre_label = "NAMCO";
         fs::path box_def_dir = path_opt->parent_path().parent_path();
-        if (fs::exists(box_def_dir / "box.def"))
-            genre = (int)Navigator::parse_box_def_uncached(box_def_dir).genre_index;
+        if (fs::exists(box_def_dir / "box.def")) {
+            const auto box = Navigator::parse_box_def_uncached(box_def_dir);
+            genre = (int)box.genre_index;
+            genre_label = box.genre_label;
+        }
 
         bool hidden = chart.HasMember("hidden") && chart["hidden"].IsBool() &&
                       chart["hidden"].GetBool();
 
-        return DanSongEntry{*path_opt, genre, diff, level, hidden};
+        return DanSongEntry{*path_opt, genre, diff, level, hidden, genre_label};
     } catch (...) {
         spdlog::warn("DanNavigator: failed to parse song entry");
         return std::nullopt;

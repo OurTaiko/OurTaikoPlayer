@@ -160,7 +160,7 @@ void DanGameScreen::init_dan() {
 
     current_song_title = parser->metadata.title.count(lang) ? parser->metadata.title.at(lang) : parser->metadata.title.at("en");
     std::string subtitle = parser->metadata.subtitle.count(lang) ? parser->metadata.subtitle.at(lang) : "";
-    song_info = SongInfo(current_song_title, subtitle, parser->metadata.subtitle_full_display, first.genre_index - 1, 1, 0, parser->metadata.maker);
+    song_info = SongInfo(current_song_title, subtitle, parser->metadata.subtitle_full_display, first.genre_index - 1, 1, 0, parser->metadata.maker, first.genre_label);
 
     start_ms = get_current_ms() - parser->metadata.offset * 1000 - (double)global_data.config->general.audio_offset;
 }
@@ -189,7 +189,7 @@ void DanGameScreen::change_song() {
     const std::string& lang = global_data.config->general.language;
     current_song_title = parser->metadata.title.count(lang) ? parser->metadata.title.at(lang) : parser->metadata.title.at("en");
     std::string subtitle = parser->metadata.subtitle.count(lang) ? parser->metadata.subtitle.at(lang) : "";
-    song_info = SongInfo(current_song_title, subtitle, parser->metadata.subtitle_full_display, entry.genre_index - 1, song_index + 1, 0, parser->metadata.maker);
+    song_info = SongInfo(current_song_title, subtitle, parser->metadata.subtitle_full_display, entry.genre_index - 1, song_index + 1, 0, parser->metadata.maker, entry.genre_label);
 
     between.start(get_current_ms(), current_song_title, subtitle,
                   parser->metadata.subtitle_full_display);

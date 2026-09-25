@@ -10,6 +10,9 @@ case "$MODE" in
     device) SDK=iphoneos; ARCH=arm64 ;;
     *) echo "Usage: $0 [simulator|device] [extra cmake configure arguments...]" >&2; exit 1 ;;
 esac
+if [[ "$MODE" == device ]]; then
+    IOS_DEVELOPMENT_TEAM="${IOS_DEVELOPMENT_TEAM-253AX6B3P2}" # Hoshino Network LLC
+fi
 CMAKE="${CMAKE:-cmake}"
 command -v "$CMAKE" >/dev/null || { echo "CMake is required (brew install cmake)." >&2; exit 1; }
 xcrun --sdk "$SDK" --show-sdk-path >/dev/null
@@ -30,7 +33,7 @@ fi
     -DIOS_FFMPEG_PREFIX="$FFMPEG_PREFIX" \
     -DOURTAIKO_SKIN_PROFILE="${OURTAIKO_SKIN_PROFILE:-green}" \
     -DIOS_DEVELOPMENT_TEAM="${IOS_DEVELOPMENT_TEAM:-}" \
-    -DIOS_BUNDLE_IDENTIFIER="${IOS_BUNDLE_IDENTIFIER:-org.ourtaiko.fanmade}" "$@"
+    -DIOS_BUNDLE_IDENTIFIER="${IOS_BUNDLE_IDENTIFIER:-org.ourtaiko.player}" "$@"
 BUILD_ARGS=(--build "$BUILD_DIR" --config "${CONFIGURATION:-Release}" --target OurTaiko --parallel "${JOBS:-$(sysctl -n hw.logicalcpu)}")
 if [[ -z "${IOS_DEVELOPMENT_TEAM:-}" ]]; then
     BUILD_ARGS+=(-- CODE_SIGNING_ALLOWED=NO)

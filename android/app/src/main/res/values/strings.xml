@@ -7,4 +7,9 @@ The first launch may take a few minutes.</string>
     <string name="game_data_failed">Could not prepare game files. Check file access and available storage, then retry.</string>
     <string name="retry">Retry</string>
     <string name="close_app">Close</string>
+    <string name="checking_update">Checking for updates…</string>
+    <string name="downloading_update">Downloading update: %1$d%%</string>
+    <string name="skip_update">Start game</string>
+    <string name="update_ready">An OurTaiko update is ready. Install it now?</string>
+    <string name="install_update">Install</string>
 </resources>

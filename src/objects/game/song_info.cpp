@@ -1,10 +1,14 @@
 #include "song_info.h"
-#include "../../libs/global_data.h"
 #include "../../libs/subtitle_rotation.h"
+#include "../../libs/global_data.h"
+#include "../enums.h"
+#include "../song_select/file_navigator/color_utils.h"
+
+static const ray::Color GENRE_PLATE_TEMPLATE_COLOR{60, 103, 0, 255};
 
 static float skin_outline(const SkinInfo& s) { return s.outline >= 0 ? s.outline : 5.0f; }
 
-SongInfo::SongInfo(const std::string& song_name, const std::string& subtitle, bool show_subtitle, int genre, int song_num, int song_total, const std::string& maker)
+SongInfo::SongInfo(const std::string& song_name, const std::string& subtitle, bool show_subtitle, int genre, int song_num, int song_total, const std::string& maker, const std::string& genre_label)
     : song_name(song_name), genre(genre >= 0 && genre < 9 ? genre : 0) {
 
     song_title = std::make_unique<OutlinedText>(song_name, tex.skin_config[SC::SONG_INFO].font_size, ray::WHITE, ray::BLACK, false,
@@ -14,7 +18,7 @@ SongInfo::SongInfo(const std::string& song_name, const std::string& subtitle, bo
         song_subtitle = std::make_unique<OutlinedText>(subtitle, tex.skin_config[SC::SONG_INFO_SUBTITLE].font_size, ray::WHITE, ray::BLACK, false, 5);
     }
     if (subtitle_font > 0 && !maker.empty()) {
-        maker_credit = std::make_unique<OutlinedText>("MADE BY " + maker, tex.skin_config[SC::SONG_INFO_SUBTITLE].font_size, ray::WHITE, ray::BLACK, false, 5);
+        maker_credit = std::make_unique<OutlinedText>("MADE BY " + maker, subtitle_font, ray::WHITE, ray::BLACK, false, 5);
     }
     showing_maker = !song_subtitle && maker_credit;
     const SkinInfo* plate_cfg = tex.skin_entry("song_num_game");
@@ -26,6 +30,22 @@ SongInfo::SongInfo(const std::string& song_name, const std::string& subtitle, bo
 
     t_genre = tex.get_texture("song_info/genre");
     t_song_num_plate = tex.has_texture("song_info/song_num_plate") ? tex.get_texture("song_info/song_num_plate") : nullptr;
+
+    int font_size = 18 * tex.screen_scale;
+    genre_text = std::make_unique<OutlinedText>(genre_label, font_size, ray::WHITE, ray::BLANK, false, 3, 1);
+
+    GenreIndex genre_bucket = this->genre < 8 ? static_cast<GenreIndex>(this->genre + 1) : GenreIndex::DEFAULT;
+    auto color_it = DEFAULT_COLORS.find(genre_bucket);
+    ray::Color target = (color_it != DEFAULT_COLORS.end() && color_it->second[1].has_value())
+                       ? color_it->second[1].value() : ray::Color{101, 0, 82, 255};
+
+    genre_shader = std::shared_ptr<ray::Shader>(
+        new ray::Shader(load_shader("shader/dummy.vs", "shader/colortransform.fs")),
+        [](ray::Shader* shader) { ray::UnloadShader(*shader); delete shader; });
+    float src[3] = { GENRE_PLATE_TEMPLATE_COLOR.r / 255.0f, GENRE_PLATE_TEMPLATE_COLOR.g / 255.0f, GENRE_PLATE_TEMPLATE_COLOR.b / 255.0f };
+    float tgt[3] = { target.r / 255.0f, target.g / 255.0f, target.b / 255.0f };
+    ray::SetShaderValue(*genre_shader, ray::GetShaderLocation(*genre_shader, "sourceColor"), src, ray::SHADER_UNIFORM_VEC3);
+    ray::SetShaderValue(*genre_shader, ray::GetShaderLocation(*genre_shader, "targetColor"), tgt, ray::SHADER_UNIFORM_VEC3);
 }
 
 void SongInfo::update(double current_ms) {
@@ -39,20 +59,34 @@ void SongInfo::draw() {
     float text_x = tex.skin_config[SC::SONG_INFO].x;
     float text_y = tex.skin_config[SC::SONG_INFO].y - song_title->height / 2.0f;
 
-    float title_x = text_x - song_title->width;
+    // Optional skin key song_info_max_width: a longer title is squeezed horizontally to fit.
+    float title_w = song_title->width;
+    float title_x2 = 0.0f;
+    if (const SkinInfo* m = tex.skin_entry("song_info_max_width")) {
+        if (m->width > 0 && title_w > m->width) {
+            title_x2 = m->width - title_w;
+            title_w = m->width;
+        }
+    }
+    float title_x = text_x - title_w;
     if (const SkinInfo* c = tex.skin_entry("song_info_center")) {
-        if (c->width > 0 && song_title->width <= c->width)
-            title_x = c->x - song_title->width / 2.0f;
+        if (c->width > 0 && title_w <= c->width)
+            title_x = c->x - title_w / 2.0f;
     }
 
     auto* credit = showing_maker ? maker_credit.get() : song_subtitle.get();
     if (const SkinInfo* plate = tex.skin_entry("song_num_game")) {
-        song_title->draw({.x=title_x, .y=text_y, .fade=1 - fade->attribute});
-        if (credit && tex.skin_config[SC::SONG_INFO_SUBTITLE].font_size > 0) {
+        song_title->draw({.x=title_x, .y=text_y, .x2=title_x2, .fade=1 - fade->attribute});
+        if (credit) {
             credit->draw({.x=text_x - credit->width, .y=tex.skin_config[SC::SONG_INFO_SUBTITLE].y - credit->height / 2.0f, .fade=1 - fade->attribute});
         }
-        if (genre < 9) {
-            tex.draw_texture(t_genre, {.frame = genre, .fade = 1 - fade->attribute,});
+        if (genre_text && t_genre) {
+            if (genre_shader) ray::BeginShaderMode(*genre_shader);
+            tex.draw_texture(t_genre, {.fade = 1 - fade->attribute});
+            if (genre_shader) ray::EndShaderMode();
+            genre_text->draw({.x = t_genre->x[0] + t_genre->width / 2.0f - genre_text->width / 2.0f,
+                               .y = t_genre->y[0] + t_genre->height / 2.0f - genre_text->height / 2.0f,
+                               .fade = 1 - fade->attribute});
         }
         if (t_song_num_plate) {
             tex.draw_texture(t_song_num_plate, {.fade = fade->attribute});
@@ -68,16 +102,21 @@ void SongInfo::draw() {
 
     song_num->draw(text_x - song_num->width, text_y, fade->attribute);
 
-    song_title->draw({.x=title_x, .y=text_y, .fade=1 - fade->attribute});
+    song_title->draw({.x=title_x, .y=text_y, .x2=title_x2, .fade=1 - fade->attribute});
 
     if (credit) {
         float sub_y = tex.skin_config[SC::SONG_INFO_SUBTITLE].y - credit->height / 2.0f;
         credit->draw({.x=text_x - credit->width, .y=sub_y, .fade=1 - fade->attribute});
     }
 
-    if (genre < 9) {
+    if (genre_text && t_genre) {
         float genre_y_offset = credit ? credit->height : 0;
-        tex.draw_texture(t_genre, {.frame = genre, .y = genre_y_offset, .fade = 1 - fade->attribute,});
+        if (genre_shader) ray::BeginShaderMode(*genre_shader);
+        tex.draw_texture(t_genre, {.y = genre_y_offset, .fade = 1 - fade->attribute});
+        if (genre_shader) ray::EndShaderMode();
+        genre_text->draw({.x = t_genre->x[0] + t_genre->width / 2.0f - genre_text->width / 2.0f,
+                           .y = t_genre->y[0] + genre_y_offset + t_genre->height / 2.0f - genre_text->height / 2.0f,
+                           .fade = 1 - fade->attribute});
     }
 }
 

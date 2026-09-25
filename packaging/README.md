@@ -31,12 +31,13 @@ CI explicitly select `green`; their shared preparation action fetches, caches an
 checks only `PyTaikoGreen`, with a separate cache key from older three-skin builds.
 
 Switching profiles removes stale skins from generated packages. It does not
-delete source skins or anything already installed on a user's device. Android
-and iOS retain their existing one-time setup: copy/extract bundled content on
+delete source skins or anything already installed on a user's device. iOS retains its existing one-time setup: copy/extract bundled content on
 first launch, preserve existing files, then skip extraction while
 `.game-data-installed` exists. An upgrade to a Green-only package therefore keeps
-previously installed skins and the user's selected skin. Missing manually removed
-skins are not repaired automatically; no new runtime skin fallback is introduced.
+previously installed skins and the user's selected skin. On Android, a separate bundled-skin revision applies the installed APK’s matching
+skins before SDL starts and backs up replaced folders; see [Android updates](../docs/ANDROID_UPDATES.md).
+Missing manually removed
+skins are not repaired automatically on unchanged versions; no new runtime skin fallback is introduced.
 
 ## Validation
 

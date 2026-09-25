@@ -66,8 +66,11 @@ Download the latest release for your operating system from the [releases page](h
 2. Allow OurTaiko to access files when prompted. The app prepares bundled skins, songs, and default settings before starting the game; this resource installation runs only once.
 3. Add your own songs to `/sdcard/OurTaiko/Songs/` and skins to `/sdcard/OurTaiko/Skins/`.
 
-After successful extraction, later launches skip bundled resource scanning, including
-app upgrades. Existing player files are preserved during the one-time migration.
+After successful extraction, later launches skip the initial resource scan.
+Bundled skins have a separate version check: after an APK update,
+the matching skins replace the previous bundled folders, which are backed up.
+Custom skin folders, songs, settings and scores are preserved. Existing player
+files are preserved during the one-time migration.
 Settings are read on every launch: a missing file is recreated; an invalid file is
 backed up as `config.toml.bak` (additional `.bak` suffixes preserve older backups)
 and replaced with complete defaults. Android and iOS defaults enable touch controls
@@ -75,14 +78,20 @@ and VSync. Delete `config.toml` and restart to reset settings. To reinstall miss
 bundled resources, close the app and remove `/sdcard/OurTaiko/.game-data-installed`;
 existing player files are preserved.
 
+Release APKs check OurTaiko GitHub Releases at launch and can download an update.
+Choose **Start game** to skip, or **Install** when the verified APK is ready; Android
+requires installation confirmation. There is no independent online skin updater.
+See [Android updates](docs/ANDROID_UPDATES.md).
+
 #### macOS
 1. Extract `OurTaiko-macOS.zip` and open `OurTaiko.app`, or run `./OurTaiko` from its directory. Keep the app beside the executable and game data; it is a launcher for the portable package.
 
 #### iOS
 1. Download `OurTaiko-iOS-unsigned.ipa`, sign it for your device, and install it (see the [iOS guide](ios/README.md)).
 
-The display name and build products use OurTaiko. Both Android and iOS use
-`org.ourtaiko.fanmade` as the application ID. Android prepares files through
+The display name and build products use OurTaiko. Android uses
+`org.ourtaiko.fanmade`; iOS uses `org.ourtaiko.player` as the application ID.
+Android prepares files through
 `org.ourtaiko.fanmade.OurTaikoLauncherActivity`, then starts the game in
 `org.ourtaiko.fanmade.OurTaikoActivity`. The new application ID installs separately
 from the original app; existing private app data is not transferred automatically.

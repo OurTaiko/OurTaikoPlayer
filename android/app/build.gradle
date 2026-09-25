@@ -28,7 +28,7 @@ android {
         applicationId 'org.ourtaiko.fanmade'
         minSdk 29
         targetSdk 35
-        versionCode 1
+        versionCode providers.gradleProperty('ourtaikoVersionCode').getOrElse('1').toInteger()
         versionName '1.0'
 
         ndk {
@@ -75,6 +75,8 @@ android {
         }
     }
 
+    buildFeatures { buildConfig = true }
+
     lint {
         abortOnError false
         checkReleaseBuilds false
@@ -110,4 +112,8 @@ android {
             jniDebuggable true
         }
     }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.13.1'
 }

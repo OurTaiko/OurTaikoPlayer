@@ -10,6 +10,88 @@
 namespace {
     double bgm_resume_at   = 0.0;   // 0 = nothing pending
     int    preview_holders = 0;     // focused song boxes that own the bgm slot
+
+    template <size_t N>
+    std::array<std::unique_ptr<OutlinedText>, N> build_vertical_label_set(
+        const std::array<SC, N>& keys, const std::string& lang,
+        float box_width, float box_height, float v_advance, float font_bonus,
+        const std::array<ray::Color, N>& fill_colors, const std::array<ray::Color, N>& outline_colors,
+        float outline_thickness = 0.0f)
+    {
+        std::array<std::string, N> labels;
+        size_t max_chars = 1;
+        for (size_t i = 0; i < N; i++) {
+            const SkinInfo& cfg = tex.skin_config[keys[i]];
+            auto it = cfg.text.find(lang);
+            labels[i] = it != cfg.text.end() ? it->second
+                      : !cfg.text.empty()    ? cfg.text.begin()->second
+                                              : "";
+            max_chars = std::max(max_chars, utf8_char_count(labels[i]));
+        }
+        float width_cap  = box_width - 4.0f;
+        float height_cap = (box_height - 4.0f) / (1.0f + (float)(max_chars - 1) * v_advance);
+        int font_size = (int)std::min(width_cap, height_cap) + font_bonus;
+
+        std::array<std::unique_ptr<OutlinedText>, N> result;
+        for (size_t i = 0; i < N; i++)
+            result[i] = std::make_unique<OutlinedText>(labels[i], font_size, fill_colors[i], outline_colors[i], true, outline_thickness, 2.0f, v_advance);
+        return result;
+    }
+
+    OutlinedText* diff_tower_label(int diff) {
+        static std::array<std::unique_ptr<OutlinedText>, 5> cache;
+        static std::string cached_lang;
+        static unsigned cached_skin_revision = 0;
+        const std::string& lang = global_data.config->general.language;
+        if (lang != cached_lang || cached_skin_revision != global_data.skin_revision) {
+            static constexpr std::array<SC, 5> keys = {
+                SC::DIFF_TOWER_EASY, SC::DIFF_TOWER_NORMAL, SC::DIFF_TOWER_HARD,
+                SC::DIFF_TOWER_ONI, SC::DIFF_TOWER_URA,
+            };
+            static const std::array<ray::Color, 5> fill_colors = {
+                ray::BLACK, ray::BLACK, ray::BLACK, ray::BLACK, ray::WHITE,
+            };
+            static const std::array<ray::Color, 5> outline_colors = {
+                ray::BLANK, ray::BLANK, ray::BLANK, ray::BLANK, ray::Color{0, 73, 90, 255},
+            };
+            const SkinInfo& box_cfg = tex.skin_config[SC::DIFF_TOWER_LABEL_BOX];
+            cache = build_vertical_label_set<5>(keys, lang, box_cfg.width, box_cfg.height, 0.9f, 5.0f, fill_colors, outline_colors, 3.0f);
+            cached_lang = lang;
+            cached_skin_revision = global_data.skin_revision;
+        }
+        return cache[diff].get();
+    }
+
+    OutlinedText* difficulty_bar_label(int diff) {
+        static std::array<std::unique_ptr<OutlinedText>, 4> cache;
+        static std::string cached_lang;
+        static unsigned cached_skin_revision = 0;
+        const std::string& lang = global_data.config->general.language;
+        if (lang != cached_lang || cached_skin_revision != global_data.skin_revision) {
+            static constexpr std::array<SC, 4> keys = {
+                SC::DIFF_TOWER_EASY, SC::DIFF_TOWER_NORMAL, SC::DIFF_TOWER_HARD, SC::DIFF_TOWER_ONI,
+            };
+            static const std::array<ray::Color, 4> colors = { ray::BLACK, ray::BLACK, ray::BLACK, ray::BLACK };
+            const SkinInfo& box_cfg = tex.skin_config[SC::DIFFICULTY_BAR_LABEL_BOX];
+            cache = build_vertical_label_set<4>(keys, lang, box_cfg.width, box_cfg.height, 0.9f, 7.0f, colors, colors);
+            cached_lang = lang;
+            cached_skin_revision = global_data.skin_revision;
+        }
+        return cache[diff].get();
+    }
+}
+
+void SongBox::draw_difficulty_bar_labels(float offset, float fade_val) {
+    const SkinInfo& box_cfg = tex.skin_config[SC::DIFFICULTY_BAR_LABEL_BOX];
+    for (int i = 0; i < 4; i++) {
+        OutlinedText* label = difficulty_bar_label(i);
+        label->draw({
+            .x = box_cfg.x + i*offset + box_cfg.width / 2.0f - label->width/2,
+            .y = box_cfg.y,
+            .y2 = std::min(label->height, box_cfg.height) - label->height,
+            .fade = fade_val,
+        });
+    }
 }
 
 void SongBox::reset_bgm_slot() {
@@ -29,6 +111,7 @@ SongBox::SongBox(const fs::path& path, const BoxDef& box_def, SongParser parser)
     : BaseBox(path, box_def)
 {
     song_genre_index = genre_index;
+    song_genre_label = box_def.genre_label;
 
     parser.get_metadata();
     auto& titles = parser.metadata.title;
@@ -395,15 +478,25 @@ void SongBox::draw_diff_select() {
     }
 
     for (int i = 0; i < 4; i++) {
+        int label_index = i;
         if (i == (int)Difficulty::ONI && is_ura) {
             tex.draw_texture(t_diff_tower,    {.frame=4, .x=i*offset_x, .fade=diff_fade_in->attribute});
             tex.draw_texture(t_ura_oni_plate, {.fade=diff_fade_in->attribute});
+            label_index = 4;
         } else {
             tex.draw_texture(t_diff_tower, {.frame=i, .x=i*offset_x, .fade=diff_fade_in->attribute});
         }
         int shown_diff = (i == (int)Difficulty::ONI && is_ura) ? (int)Difficulty::URA : i;
         if (!parser.metadata.course_data.count(shown_diff))
             tex.draw_texture(t_diff_tower_shadow, {.frame=i, .x=i*offset_x, .fade=std::min((float)diff_fade_in->attribute, 0.25f)});
+
+        OutlinedText* label = diff_tower_label(label_index);
+        const SkinInfo& box_cfg = tex.skin_config[SC::DIFF_TOWER_LABEL_BOX];
+        label->draw({
+            .x = box_cfg.x + i*offset_x + (box_cfg.width - label->width) / 2.0f,
+            .y = box_cfg.y,
+            .fade = diff_fade_in->attribute
+        });
     }
 
     float star_offset_y = tex.skin_config[SC::YB_DIFF_OFFSET_CROWN].y;
@@ -466,6 +559,7 @@ void SongBox::draw_open() {
         if (!parser.metadata.course_data.count(i))
             tex.draw_texture(t_difficulty_bar_shadow, {.frame=i, .x=i*offset, .fade=std::min((float)open_fade->attribute, 0.25f)});
     }
+    draw_difficulty_bar_labels(offset, open_fade->attribute);
 
     float offset_y = tex.skin_config[SC::YB_DIFF_OFFSET].y;
     for (const auto& [diff, course] : parser.metadata.course_data) {

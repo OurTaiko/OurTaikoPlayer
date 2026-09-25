@@ -53,7 +53,7 @@ void GameScreen::on_screen_start() {
     init_tja(session_data.selected_song);
     spdlog::info("TJA initialized for song: {}", session_data.selected_song.string());
     load_hitsounds();
-    song_info = SongInfo(session_data.song_title, session_data.song_subtitle, parser->metadata.subtitle_full_display, session_data.genre_index, global_data.songs_played + 1, 0, parser->metadata.maker);
+    song_info = SongInfo(session_data.song_title, session_data.song_subtitle, parser->metadata.subtitle_full_display, session_data.genre_index, global_data.songs_played + 1, 0, parser->metadata.maker, session_data.genre_label);
     result_transition = ResultTransition(global_data.player_num);
     bpm = parser->metadata.bpm;
     scene_preset = parser->metadata.scene_preset;
@@ -514,8 +514,8 @@ std::optional<Screens> GameScreen::update() {
     return std::nullopt;
 }
 
-void GameScreen::draw_overlay() {
-    song_info.draw();
+void GameScreen::draw_overlay(bool with_song_info) {
+    if (with_song_info) song_info.draw();
     draw_skip();
     bool over_transition = false;
     if (!transition->is_finished()) {

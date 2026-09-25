@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise real packaging scripts against isolated assets; no SDK is required."""
 import argparse
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -43,7 +44,7 @@ def cmake(source, output, profile=None, *, ios=False, succeeds=True):
 def check_tree(path, skins):
     assert {p.name for p in path.iterdir()} == skins
     files = {p.relative_to(path).as_posix() for p in path.rglob("*") if p.is_file()}
-    for category in ("Graphics", "Scripts", "Sounds", "Models", "Videos"):
+    for category in ("Graphics", "Fonts", "Scripts", "Sounds", "Models", "Videos"):
         assert f"{GREEN}/{category}/日本語.txt" in files
     assert not any(".git" in name or ".DS_Store" in name for name in files)
 
@@ -60,7 +61,7 @@ def main():
         for name in ("LICENSE", "NOTICE", "Songs/日本語/song.tja", "shader/es/test.glsl"):
             write(source, name)
         write(source, f"Skins/{GREEN}/Graphics/skin_config.json", "{}")
-        for category in ("Graphics", "Scripts", "Sounds", "Models", "Videos"):
+        for category in ("Graphics", "Fonts", "Scripts", "Sounds", "Models", "Videos"):
             write(source, f"Skins/{GREEN}/{category}/日本語.txt")
         for metadata in (".git", ".gitignore", "Graphics/.DS_Store"):
             write(source, f"Skins/{GREEN}/{metadata}")
@@ -113,7 +114,12 @@ def main():
                     assert {n.split("/")[1] for n in files if n.startswith("Skins/")} == skins
                     assert not any(".git" in n or ".DS_Store" in n for n in files)
                     assert int((generated / "GameData.count").read_text()) == len(files)
-                    for category in ("Graphics", "Scripts", "Sounds", "Models", "Videos"):
+                    revision, *counts = (generated / "GameData.skins").read_text().splitlines()
+                    assert revision == hashlib.sha256((generated / "GameData.zip").read_bytes()).hexdigest()
+                    assert dict(line.split() for line in counts) == {
+                        skin: str(sum(n.startswith(f"Skins/{skin}/") for n in files)) for skin in skins}
+
+                    for category in ("Graphics", "Fonts", "Scripts", "Sounds", "Models", "Videos"):
                         assert f"Skins/{GREEN}/{category}/日本語.txt" in files
                     config = archive.read("config.toml").decode()
                     assert "touch_input = true" in config and "vsync = true" in config

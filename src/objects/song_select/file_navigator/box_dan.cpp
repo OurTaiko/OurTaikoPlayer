@@ -9,7 +9,7 @@
 DanBox::DanBox(const fs::path& path, const std::string& title, int color,
                const std::vector<DanSongEntry>& songs_in,
                const std::vector<Exam>& exams_in, int total_notes_in)
-    : BaseBox(path, BoxDef{title, static_cast<TextureIndex>(color), GenreIndex::DAN, "", std::nullopt, std::nullopt})
+    : BaseBox(path, BoxDef{title, static_cast<TextureIndex>(color), GenreIndex::DAN, "", "", std::nullopt, std::nullopt})
     , dan_title(title), dan_color(color)
     , songs(songs_in), exams(exams_in), total_notes(total_notes_in)
 {
