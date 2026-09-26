@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-REPO="OurTaiko/OurTaiko"
+REPO="OurTaiko/OurTaikoPlayer"
 API_URL="https://api.github.com/repos/$REPO/releases/latest"
 INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION_FILE="$INSTALL_DIR/.version"

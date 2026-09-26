@@ -1,6 +1,6 @@
 # Android application updates
 
-Release builds check the latest **OurTaiko/OurTaiko** GitHub Release after local
+Release builds check the latest **OurTaiko/OurTaikoPlayer** GitHub Release after local
 resource preparation, before starting SDL. Debug builds skip this check. The Java
 updater is independent of Fanmade accounts, credentials and `FANMADE_NETWORK`.
 iOS does not use this updater.

@@ -1,6 +1,6 @@
 # GitHub Actions 构建与 Android 签名
 
-仓库：[OurTaiko/OurTaiko](https://github.com/OurTaiko/OurTaiko)。
+仓库：[OurTaiko/OurTaikoPlayer](https://github.com/OurTaiko/OurTaikoPlayer)。
 
 ## 启动构建
 
@@ -12,14 +12,14 @@
 命令行手动构建：
 
 ```sh
-gh workflow run build.yml --repo OurTaiko/OurTaiko --ref master
-gh run list --repo OurTaiko/OurTaiko --workflow build.yml
+gh workflow run build.yml --repo OurTaiko/OurTaikoPlayer --ref master
+gh run list --repo OurTaiko/OurTaikoPlayer --workflow build.yml
 ```
 
 需要正式发布时，在 Run workflow 中勾选 `publish_release`，或执行：
 
 ```sh
-gh workflow run build.yml --repo OurTaiko/OurTaiko --ref master -f publish_release=true -f release_tag=v0.0.5
+gh workflow run build.yml --repo OurTaiko/OurTaikoPlayer --ref master -f publish_release=true -f release_tag=v0.0.5
 ```
 
 正式发布还必须填写尚未存在的 `release_tag`（例如 `v0.0.5`）。所有平台构建
@@ -102,7 +102,7 @@ python3 tools/android_signing.py create \
 ```sh
 python3 tools/android_signing.py upload \
   --directory "$HOME/.local/share/OurTaiko/android-signing" \
-  --repo OurTaiko/OurTaiko
+  --repo OurTaiko/OurTaikoPlayer
 ```
 
 四项内容通过标准输入交给 GitHub CLI，不出现在命令参数中。

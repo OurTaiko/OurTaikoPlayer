@@ -14,7 +14,7 @@ def generate(apk: Path, version: int, tag: str, destination: Path):
         digest = hashlib.file_digest(source, "sha256").hexdigest()
     destination.mkdir(parents=True, exist_ok=True)
     data = {"schema": 1, "package": "org.ourtaiko.fanmade", "versionCode": version,
-            "url": "https://github.com/OurTaiko/OurTaiko/releases/download/" + quote(tag, safe="") + "/OurTaiko-Android.apk",
+            "url": "https://github.com/OurTaiko/OurTaikoPlayer/releases/download/" + quote(tag, safe="") + "/OurTaiko-Android.apk",
             "sha256": digest, "size": apk.stat().st_size}
     (destination / "android-update.json").write_text(json.dumps(data, indent=2) + "\n")
     (destination / "checksums-android.sha256").write_text(digest + "  OurTaiko-Android.apk\n")

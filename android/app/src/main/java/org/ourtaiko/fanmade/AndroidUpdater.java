@@ -12,7 +12,7 @@ import java.util.*;
 
 /** Independent of Fanmade, account credentials and the native networking build option. */
 final class AndroidUpdater {
-    private static final String RELEASE_ROOT = "https://github.com/OurTaiko/OurTaiko/releases/";
+    private static final String RELEASE_ROOT = "https://github.com/OurTaiko/OurTaikoPlayer/releases/";
 
     static File check(Context context, UpdateFiles.Progress progress) throws Exception {
         if (BuildConfig.DEBUG) return null;
