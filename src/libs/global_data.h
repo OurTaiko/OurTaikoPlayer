@@ -156,13 +156,6 @@ struct GlobalData {
     bool in_transition = false;
     std::string title_state = "";
     double      title_state_start_ms = 0.0;
-    int  live_combo = 0;
-    int  live_score = 0;
-    int  live_drumroll = 0;
-    bool live_gogo = false;
-    double live_soul = 0.0;
-    bool live_is_clear = false;
-    bool live_is_rainbow = false;
     int  live_skip_count = -1;
     bool live_skip_used = false;
     bool force_auto_play = false;
