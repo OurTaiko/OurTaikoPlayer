@@ -294,7 +294,11 @@ int main(int argc,char** argv) {
         check(diff>=0,"single difficulty available");
     }
     Score score; score.good=12; score.ok=3; score.bad=1; score.score=999999; score.drumroll=9; score.max_combo=11;
-    client.submit(playable,diff,score);
+    PlayRecord recording{-20, 10, {{-15.5,InputLogType::KAT_L}, {1234.5,InputLogType::DON_L},
+                                   {1234.5,InputLogType::DON_R}, {1200,InputLogType::KAT_R}}};
+    client.submit(playable,diff,score,recording);
+    // Later settings/input changes must not mutate the persisted request.
+    recording.audio_offset_ms=99; recording.visual_offset_ms=99; recording.inputs.clear();
     for(int n=0;n<40;n++) {
         client.update(); auto best=client.best(path,diff);
         if(best&&best->score==score.score) break;
@@ -317,6 +321,15 @@ int main(int argc,char** argv) {
     if(!real) {
         Score double_score=score; client.submit(playable,2,double_score);
         check(!client.best(path,2),"double scores excluded");
+        for (const auto& candidate : paths) if (client.chart(candidate)->title=="Second") {
+            client.submit(candidate,3,score,recording);
+            for(int n=0;n<100;n++) {
+                client.update();
+                if(client.best(candidate,3)->score==score.score) break;
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            check(client.best(candidate,3)->score==score.score,"legacy server still accepts original score payload");
+        }
     }
     std::cout<<"PASS: catalog, isolated scores, download, cache hit, corruption recovery, score and maximum combo submission\n";
  } catch(const std::exception& e) { std::cerr<<"FAIL: "<<e.what()<<"\n"; return 1; }

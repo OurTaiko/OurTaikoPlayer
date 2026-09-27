@@ -1,5 +1,7 @@
 #pragma once
 
+#include "play_record.h"
+
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -64,7 +66,8 @@ public:
     std::optional<Score> best(const fs::path& path, int difficulty) const;
     // Callback runs on the worker thread; publish a snapshot before rendering.
     fs::path prepare(const fs::path& path, std::shared_ptr<std::atomic_bool> cancel = {}, DownloadCallback progress = {});
-    void submit(const fs::path& path, int difficulty, const Score& score);
+    void submit(const fs::path& path, int difficulty, const Score& score,
+                const std::optional<PlayRecord>& replay = std::nullopt);
     void update(); // launches queued submissions; never waits for HTTP
     bool online() const;
     uint64_t revision() const;

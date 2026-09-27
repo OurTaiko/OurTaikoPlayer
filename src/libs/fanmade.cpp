@@ -2,6 +2,7 @@
 #include "sha256.h"
 #include <algorithm>
 #include <climits>
+#include <cmath>
 #include <set>
 #include <atomic>
 #include <chrono>
@@ -71,6 +72,24 @@ rapidjson::Document json(const std::string& text) {
 std::string encode(const rapidjson::Value& d) { rapidjson::StringBuffer b; rapidjson::Writer<rapidjson::StringBuffer> w(b); d.Accept(w); return b.GetString(); }
 void put(rapidjson::Document& d,const char* k,const std::string& v) { d.AddMember(rapidjson::Value(k,d.GetAllocator()),rapidjson::Value(v.c_str(),v.size(),d.GetAllocator()),d.GetAllocator()); }
 void put(rapidjson::Document& d,const char* k,int64_t v) { d.AddMember(rapidjson::Value(k,d.GetAllocator()),rapidjson::Value(v),d.GetAllocator()); }
+rapidjson::Value replay_json(const std::optional<PlayRecord>& replay, rapidjson::Document::AllocatorType& allocator) {
+    if (!replay || replay->inputs.size() > max_replay_inputs) return rapidjson::Value();
+    rapidjson::Value inputs(rapidjson::kArrayType);
+    for (const auto& [ms, type] : replay->inputs) {
+        const int key = static_cast<int>(type);
+        if (!std::isfinite(ms) || std::abs(ms) > max_replay_time_ms || key < 0 || key > 3)
+            return rapidjson::Value();
+        rapidjson::Value event(rapidjson::kArrayType);
+        event.PushBack(ms, allocator).PushBack(key, allocator);
+        inputs.PushBack(event, allocator);
+    }
+    rapidjson::Value result(rapidjson::kObjectType);
+    result.AddMember("version", 1, allocator);
+    result.AddMember("audio_offset_ms", replay->audio_offset_ms, allocator);
+    result.AddMember("visual_offset_ms", replay->visual_offset_ms, allocator);
+    result.AddMember("inputs", inputs, allocator);
+    return result;
+}
 Score score_from(const rapidjson::Value& v) {
     Score s; s.id=str(v,"id"); s.song=str(v,"songId"); s.version=str(v,"versionId"); s.difficulty=str(v,"difficulty");
     s.good=number(v,"good"); s.ok=number(v,"ok"); s.bad=number(v,"bad"); s.score=number(v,"score"); s.drumroll=number(v,"drumroll");
@@ -146,6 +165,7 @@ struct Endpoint {
     std::string id,token;
     std::mutex http_mutex;
     bool connected=false;
+    bool score_replay_v1=false;
     std::atomic<bool> authenticated{false};
     int chart_count=-1;
     std::vector<Score> scores;
@@ -360,6 +380,8 @@ void Client::bootstrap(const std::vector<ServerConfig>& servers,const fs::path& 
             try { login(*e); }
             catch(const std::exception& err) { login_error=err.what(); }
             auto snapshot=json(authorized(*e,"/api/v1/game/bootstrap"));
+            e->score_replay_v1 = snapshot.HasMember("scoreReplayVersion") &&
+                snapshot["scoreReplayVersion"].IsInt() && snapshot["scoreReplayVersion"].GetInt() == 1;
             if(!snapshot.HasMember("categories")||!snapshot["categories"].IsArray()||!snapshot.HasMember("scores")||!snapshot["scores"].IsArray()) throw std::runtime_error("API_BOOTSTRAP_INVALID");
             struct Category { std::string id,title,genre; int count=-1; };
             std::vector<Category> categories;
@@ -570,12 +592,13 @@ fs::path Client::prepare(const fs::path& path, std::shared_ptr<std::atomic_bool>
     publish();
     return playable;
 }
-void Client::submit(const fs::path& path,int difficulty,const Score& score) {
+void Client::submit(const fs::path& path,int difficulty,const Score& score,const std::optional<PlayRecord>& replay) {
     auto c=chart(path); if(!c||difficulty<0||difficulty>=5||!c->difficulties[difficulty]||!c->difficulties[difficulty]->cloud) return;
     auto e=impl->endpoints.at(c->server);
     if(!e->connected||!e->authenticated) return;
     rapidjson::Document d; d.SetObject(); put(d,"songId",c->id); put(d,"versionId",c->version); put(d,"difficulty",courses[difficulty]);
     put(d,"good",score.good); put(d,"ok",score.ok); put(d,"bad",score.bad); put(d,"score",score.score); put(d,"drumroll",score.drumroll); put(d,"max_combo",score.max_combo);
+    if (e->score_replay_v1) d.AddMember("replay_data", replay_json(replay, d.GetAllocator()), d.GetAllocator());
     try { write(impl->cache/"pending"/c->server/(random_key()+".json"),encode(d)); impl->retry={}; update(); }
     catch(const std::exception& err) { impl->status(std::string("Score queue error: ")+err.what()); }
 }

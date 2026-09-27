@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include "../../libs/play_record.h"
 #include "../../libs/screen.h"
 #include "../../libs/song_parser.h"
 #include "../../libs/text.h"
@@ -43,20 +44,13 @@ namespace Timing {
     constexpr float BAD_EASY = 125.125f;
 }
 
-enum class InputLogType {
-    KAT_L = 0,
-    DON_L = 1,
-    DON_R = 2,
-    KAT_R = 3
-};
-
 class Player {
 public:
     double end_time;
     float bpm;
     PlayerNum player_num;
     double last_note_hit;
-    std::map<double, InputLogType> input_log;
+    InputLog input_log;
 
     std::vector<BranchDifficulty> branch_history;
 
@@ -84,6 +78,7 @@ public:
         return it != note_judgments.end() ? std::optional<Judgments>(it->second) : std::nullopt;
     }
     bool is_auto_play() const { return modifiers.auto_play; }
+    fanmade::PlayRecord play_record() const { return {audio_offset, visual_offset, input_log}; }
     bool is_skip_enabled() const { return modifiers.skip; }
     void cut_to_end(double now, int prev_good = 0, int prev_ok = 0, int prev_bad = 0);
     bool was_skipped() const { return skipped_run; }
@@ -133,6 +128,7 @@ private:
     bool is_dan;
     int difficulty;
     int visual_offset;
+    int audio_offset;
     std::string score_method;
     Modifiers modifiers;
     std::optional<SongParser> parser;

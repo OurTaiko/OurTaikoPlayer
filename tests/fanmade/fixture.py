@@ -98,7 +98,9 @@ class Handler(BaseHTTPRequestHandler):
                 {'id':'variety','title':'Variety','genre':'VARIETY','chartCount':0}]
             if variant=='refresh' and counts['refresh:'+path]>1:
                 categories.append({'id':'classic','title':'Classic','genre':'CLASSICAL','chartCount':0})
-            return self.reply({'categories':categories,'chartCount':1,'scores':scores})
+            snapshot={'categories':categories,'chartCount':1,'scores':scores}
+            if endpoint=='first': snapshot['scoreReplayVersion']=1
+            return self.reply(snapshot)
         if path.startswith('/api/v1/game/categories/'):
             category=path.split('/')[-2]
             if category=='variety':
@@ -118,13 +120,18 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             assert body['difficulty']=='Oni' and body['versionId']==VERSION
             assert [body[x] for x in ['good','ok','bad','score','drumroll','max_combo']]==[12,3,1,999999,9,11]
+            if endpoint=='first':
+                assert body['replay_data']==dict(version=1,audio_offset_ms=-20,visual_offset_ms=10,
+                    inputs=[[-15.5,0],[1234.5,1],[1234.5,2],[1200,3]]), 'recording changed or lost simultaneous inputs'
+            else:
+                assert 'replay_data' not in body, 'legacy servers reject unknown recording fields'
             key=(endpoint,self.headers.get('Idempotency-Key'))
             assert len(key[1])==64
             with lock:
                 retry=key in stored
                 if retry: assert stored[key]==body
                 stored[key]=body
-            if not retry: return self.reply({"code":"TEMPORARY_FAILURE_AFTER_COMMIT"},500)
+            if not retry and endpoint=='first': return self.reply({"code":"TEMPORARY_FAILURE_AFTER_COMMIT"},500)
             return self.reply(score(endpoint,**body,id=key[1]),201)
         return self.reply({},404)
 
@@ -143,6 +150,7 @@ if __name__=='__main__':
             assert counts['guest:/api/v1/game/scores']==0, counts
             assert counts['guest:/api/v1/charts/'+SONG+'/versions/'+VERSION+'/tja']==4, counts
             assert counts['guest:/api/v1/charts/'+SONG+'/versions/'+VERSION+'/audio']==4, counts
-            assert len(stored)==1, stored
+            assert len(stored)==2, stored
+            assert not any('replay' in route for route in counts), 'client must not request or poll replays'
             print('PASS: guest playback, no guest login/score upload, proxy routing, exact downloads, version isolation, no DOUBLE upload')
     finally: server.shutdown()

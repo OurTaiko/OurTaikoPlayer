@@ -15,6 +15,7 @@ Player::Player(std::optional<SongParser>& parser_ref, PlayerNum player_num_param
     , player_num(player_num_param)
     , difficulty(difficulty_param)
     , visual_offset(global_data.config->general.visual_offset)
+    , audio_offset(global_data.config->general.audio_offset)
     , score_method(global_data.config->general.score_method)
     , modifiers(modifiers_param)
     , parser(parser_ref)
@@ -1467,7 +1468,7 @@ void Player::handle_input(double ms_from_start, double current_ms, std::optional
             } else {
                 log_type = input.side == Side::LEFT ? InputLogType::KAT_L : InputLogType::KAT_R;
             }
-            input_log.insert({ms_from_start, log_type});
+            input_log.emplace_back(ms_from_start, log_type);
             check_note(ms_from_start, input.drum_type, current_ms, background);
         }
     }

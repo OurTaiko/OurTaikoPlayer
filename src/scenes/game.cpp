@@ -306,7 +306,8 @@ void GameScreen::save_score(int player_id, PlayerNum player_num) {
         fanmade::Score cloud;
         cloud.good=score.good; cloud.ok=score.ok; cloud.bad=score.bad;
         cloud.score=score.score; cloud.drumroll=score.drumroll; cloud.max_combo=score.max_combo;
-        fanmade::client().submit(session_data.selected_song, session_data.selected_difficulty, cloud);
+        fanmade::client().submit(session_data.selected_song, session_data.selected_difficulty, cloud,
+                                 (*score_player)->play_record());
     }
 }
 

@@ -118,3 +118,16 @@ bootstrap 新增各分类 `chartCount` 与顶层去重 `chartCount`。文件夹�
 选曲停留在一首歌时，SUBTITLE 与 `MADE BY <maker>` 各显示 3000ms，重新选曲从字幕开始。没有字幕时持续显示署名，没有署名时保持字幕；两者都空时不显示额外文本。C++ 竖排、横排文字接口和 Lua 的 text_subtitle 属性共用轮换状态；歌曲原始 subtitle 保留供搜索、收藏及过场使用。演奏页面已有字幕槽也采用同一轮换规则；未配置演奏字幕槽的皮肤保留原布局。
 
 `tests/fanmade/client.cpp` 覆盖 2999/3000/5999/6000ms 边界、空字段和重复轮换，原生 API 夹具验证汇总署名进入目录/游玩缓存和 TJAParser。iOS Simulator Release 编译通过；这些检查不替代真机、Android/Windows 或各皮肤的实际画面回归。
+
+
+## 成绩附带输入记录（2026-09-27）
+
+当前仅记录并随成绩上传，不实现回放查询、轮询、下载、播放或游戏菜单入口。
+
+服务器 bootstrap 声明 `scoreReplayVersion: 1` 时，成绩请求附带 `replay_data`，结构为 `{version:1,audio_offset_ms,visual_offset_ms,inputs}`。两项延迟取自创建本局 Player 时的配置；inputs 为 `[ms_from_start, type]` 数组，0/1/2/3 分别是左 Kat/左 Don/右 Don/右 Kat。事件保留消费顺序，包括同帧多次敲击及硬同步后的时间倒退，记录的是游戏判定时间而非原始硬件时间戳。重开会创建新 Player，不继承上一局输入。
+
+录制有效时和成绩一起写入原持久化 pending JSON，后续改设置、进程重启和重试不会改变该请求或幂等键。超过 100,000 个事件、存在无效类型或超出 ±86,400,000 ms 的时间时，附带 null，仍上传成绩。未声明版本 1 的服务器使用原成绩字段，兼容旧 Fanmade/ESE；旧 pending 文件不需要迁移。
+
+只归档输入和两项延迟，不实现重放验分或随机谱面确定性还原。v1 不记录 modifiers 的随机种子；需要实际播放时应升级录制格式并验证完整时间轴。
+
+`tests/fanmade/client.cpp` + `fixture.py` 验证同帧多输入、负数/倒退时间、延迟快照、原请求重启重试、旧服务器兼容，并检查客户端未发出回放查询。
